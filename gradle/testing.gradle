@@ -1,0 +1,8 @@
+if (System.env.CI == 'true') {
+  tasks.withType(Test) {
+    testLogging {
+      events "passed", "skipped", "failed"
+    }
+  }
+}
+check.dependsOn javadoc
