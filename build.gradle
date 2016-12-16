@@ -1,14 +1,30 @@
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.5.3'
+  }
+}
+
 plugins {
   id 'eclipse'
   id 'java'
+  id 'com.bmuschko.nexus' version '2.3.1'
 }
+apply plugin: 'io.codearte.nexus-staging'
+
+apply from: "$rootDir/gradle/publication.gradle"
+apply from: "$rootDir/gradle/testing.gradle"
 
 repositories {
   mavenCentral()
 }
 
+group = 'org.alicep'
+archivesBaseName = 'collect'
+
 sourceCompatibility = 1.8
-targetCompatibility = 1.8
 
 dependencies {
   compile guava
@@ -18,12 +34,32 @@ dependencies {
   testCompile junit
 }
 
-if (System.env.CI == 'true') {
-  tasks.withType(Test) {
-    testLogging {
-      events "passed", "skipped", "failed"
+modifyPom {
+  project {
+    name 'Compact Java Collections'
+    description 'Compact collections for Java'
+    url 'https://github.com/alicep-org/collect'
+
+    scm {
+      url 'https://github.com/alicep-org/collect'
+      connection 'scm:git:git://github.com/alicep-org/collect.git'
+      developerConnection 'scm:git:git@github.com:alicep-org/collect.git'
+    }
+
+    licenses {
+      license {
+        name 'Apache 2.0'
+        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+      }
+    }
+
+    developers {
+      developer {
+        id 'chrisalice'
+        name 'Chris Purcell'
+        email 'Chris.Purcell.39@gmail.com'
+        timezone 'Europe/London'
+      }
     }
   }
 }
-check.dependsOn javadoc
-

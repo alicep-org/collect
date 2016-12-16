@@ -5,3 +5,23 @@ jdk:
 install: ./gradlew clean jar
 script: ./gradlew check
 
+env:
+  global:
+    - PGP_KEY_ID="2887CE9B"
+    - PGP_PASSWORD=""
+    - PGP_SECRET_KEY_RING_FILE=~/.gnupg/secring.gpg
+      # NEXUS_USERNAME
+    - secure: "YIX7wkzLlX8kMYHppZ0UUQM0x6+xPM+C/zehkRPXvNnViDrLkZuYNrH3QuXCD5dF0jyuA/IdkCGtF+4uP9YYyw2rPzSKGWUivDXzLeY+WYFcd25Q7QIUL3ieQOFSXY5s/Mf42N+LCuU+pAeZGoVOgv5afZMUdbXwC3RQfBVFFwzITlCi/l9SnxXhj+cQiNNAJPnLyQDpbxmM/oDJSpnurOZevhrpyIxPLdM1TY+fS0Mlo8THZwhk8FnLBq7GwA1XNzNG84OSOFAnyzAsUUGjdKx/og7WXEjoYSmRj+LoD4pXFYRbmr5t+pJsdkLzTYPMl6NRu0bkTLAaONcHDeoHGyk/OWIpi4P/4G5FUqgFyquBotAbxDfBMupk121ypsTLzXRjwkmubvhLdc7zRYsC6hn+2AyZHtFH6WX2sBnLyuOWSlIFSdN3PjK1dDrozvEKjk6eyu9AeMlPxskjY2lXVuBjpW//WrNSsgW+jY9JhQrOZCLxs1B8G7eEZalyxylPmpLrXZMovtch7yPLU8aEddlFj7g7oL04DVdJmwpaIad64pOaO5pAchsbrjhxVNdXVFUYpq8WiSdI51DSjzjNOx9siO85Xi7tMZyuKv82pGrP6dYDibGDpv+sIG9bslfQsMtv6iqsWzRJFdfzASLVzJ8fjNsqI+ULBRw85W5lVbQ="
+      # NEXUS_PASSWORD
+    - secure: "qc68ZzE2BJxsl7wZdepsQelzZSL0f3/7rgcqMUCZIFBSJ3Wib30SnJ0paHEuqxSXvGjLkIwbgI2mjaTj8dpTiy4oIJCmFcj1XiFANRKOVEofnKRlNU8Q14oyuOnemsyHTOsFGvCMzjyoiiPUumRdbEmaM0ybI/A6IlruKKavyi8eFUjab51q/vT9oDvfQ93gBG6ZvWVFo5o4K9+xrRgUQnyt6qcsbxctTcj7GChkzpor8A4cbqFoF8Kvzie92gD6LXAFkHzc/hk3/Fz6fxJ81xt3ZvTkemQcAx7QnSPWK2c/IDRBs6ccz0CIA9dljhjt6C9nlyfWJr5+9iKIGlfdbr4AuMhy0UGC4xKSmb24DDaUUoXvOqKPxW8DoyQ1MSH4KsBQ7RKTNO0lshYxn57VA88NuTq0ibKHDrwPTRe6IDpKCWxpUztK+ykBbN96ObKbQWs3mSPBUWVcJCJs1y3iQa7A554wIvFRwHAkzdhQPfCF+Y8617hmPnB85yAT+dvpYwmi2O5kGmi9MJBXHSdwsMcyh63aGlXIyFA9k2Fl+9IG3XFWW1N6FdeuV30RaXgxLEPxZOfYDpCg/r8I7wuW8zkun1qKzRPWau28spTPRsQkKi6ud2inBos0turzom5JSNjv8uLU+viNj89un1TFbYXTXgie0Jrnv6Rn3eojaB4="
+
+before_deploy: 
+  - openssl aes-256-cbc -K ${encrypted_dc72d5bb1914_key:?not set} -iv ${encrypted_dc72d5bb1914_iv:?not set} -in gradle/codesigning.asc.enc -out codesigning.asc -d
+  - gpg --fast-import -q codesigning.asc
+
+deploy:
+  skip_cleanup: true
+  provider: script
+  script: ./gradlew upload closeAndPromoteRepository
+  on:
+    tags: true
