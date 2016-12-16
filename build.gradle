@@ -1,0 +1,29 @@
+plugins {
+  id 'eclipse'
+  id 'java'
+}
+
+repositories {
+  mavenCentral()
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+  compile guava
+
+  testCompile commonsMath
+  testCompile guavaTestlib
+  testCompile junit
+}
+
+if (System.env.CI == 'true') {
+  tasks.withType(Test) {
+    testLogging {
+      events "passed", "skipped", "failed"
+    }
+  }
+}
+check.dependsOn javadoc
+
