@@ -1,0 +1,18 @@
+if (System.env.TRAVIS_TAG != null && !System.env.TRAVIS_TAG.isEmpty()) {
+  version = System.env.TRAVIS_TAG.replaceAll('^v','')
+} else if (System.env.TRAVIS_BRANCH != null && !System.env.TRAVIS_BRANCH.isEmpty()) {
+  version = System.env.TRAVIS_BRANCH + '-alpha.' + System.env.TRAVIS_BUILD_NUMBER
+} else {
+  version = 'UNKNOWN-SNAPSHOT'
+}
+
+ext['signing.keyId'] = System.env.PGP_KEY_ID
+ext['signing.password'] = System.env.PGP_PASSWORD
+ext['signing.secretKeyRingFile'] = System.env.PGP_SECRET_KEY_RING_FILE
+ext['nexusUsername'] = System.env.NEXUS_USERNAME
+ext['nexusPassword'] = System.env.NEXUS_PASSWORD
+
+nexusStaging {
+  numberOfRetries = 20
+  delayBetweenRetriesInMillis = 3000
+}
