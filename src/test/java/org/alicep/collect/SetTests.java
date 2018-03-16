@@ -51,8 +51,8 @@ public class SetTests<T> {
   public static Iterable<Config<?>> data() {
     ImmutableList.Builder<Config<?>> data = ImmutableList.builder();
     for (int size : SIZES) {
-      data.add(new Config<>(CompactSet::new, longs, size));
-      data.add(new Config<>(CompactSet::new, strings, size));
+      data.add(new Config<>(ArraySet::new, longs, size));
+      data.add(new Config<>(ArraySet::new, strings, size));
     }
     return data.build();
   }
@@ -69,39 +69,39 @@ public class SetTests<T> {
 
   @Test
   public void validateAThousandInsertions() {
-    Set<T> compactSet = setFactory.get();
+    Set<T> arraySet = setFactory.get();
     for (long index = 0; index < 1000; index++) {
       if (index >= size) {
-        removePresentItem(compactSet, index - size);
-        verifyItems(compactSet, index - size + 1, index - 1);
+        removePresentItem(arraySet, index - size);
+        verifyItems(arraySet, index - size + 1, index - 1);
       }
-      addMissingItem(compactSet, index);
-      verifyItems(compactSet, Math.max(index - size + 1, 0), index);
+      addMissingItem(arraySet, index);
+      verifyItems(arraySet, Math.max(index - size + 1, 0), index);
     }
   }
 
-  private void addMissingItem(Set<T> compactSet, long index) {
+  private void addMissingItem(Set<T> arraySet, long index) {
     T item = itemFactory.createItem(index);
     assertTrue("Failed to insert item #" + (index + 1) + ", " + item,
-        compactSet.add(item));
+        arraySet.add(item));
   }
 
-  private void removePresentItem(Set<T> compactSet, long index) {
+  private void removePresentItem(Set<T> arraySet, long index) {
     T item = itemFactory.createItem(index);
     assertTrue("Failed to remove item #" + (index + 1) + ", " + item,
-        compactSet.remove(item));
+        arraySet.remove(item));
   }
 
-  private void verifyItems(Set<T> compactSet, long firstIndex, long lastIndex) {
+  private void verifyItems(Set<T> arraySet, long firstIndex, long lastIndex) {
     assertTrue(lastIndex >= firstIndex);
     for (long index = firstIndex - 20; index < firstIndex; index++) {
-      assertFalse("Regained item " + (index + 1), compactSet.contains(itemFactory.createItem(index)));
+      assertFalse("Regained item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
     }
     for (long index = firstIndex; index <= lastIndex; index++) {
-      assertTrue("Lost item " + (index + 1), compactSet.contains(itemFactory.createItem(index)));
+      assertTrue("Lost item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
     }
     for (long index = lastIndex + 1; index <= lastIndex + 20; index++) {
-      assertFalse("Unexpected item " + (index + 1), compactSet.contains(itemFactory.createItem(index)));
+      assertFalse("Unexpected item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
     }
   }
 }

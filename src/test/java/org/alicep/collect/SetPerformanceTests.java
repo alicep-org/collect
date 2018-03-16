@@ -55,10 +55,10 @@ public class SetPerformanceTests<T> {
   private static final ImmutableList<Config<?>> CONFIGURATIONS = ImmutableList.of(
       new Config<>(HashSet::new, longs),
       new Config<>(LinkedHashSet::new, longs),
-      new Config<>(CompactSet::new, longs),
+      new Config<>(ArraySet::new, longs),
       new Config<>(HashSet::new, strings),
       new Config<>(LinkedHashSet::new, strings),
-      new Config<>(CompactSet::new, strings));
+      new Config<>(ArraySet::new, strings));
 
   private final String configName;
   private final Supplier<Set<T>> setFactory;
@@ -80,12 +80,12 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** ten items, update heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 1000000; index++) {
         if (index >= 10) {
-          removePresentItem(compactSet, index - 10);
+          removePresentItem(arraySet, index - 10);
         }
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
       }
       watch.stop();
       System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
@@ -97,14 +97,14 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** ten items, failed-lookup heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 200000; index++) {
         if (index >= 10) {
-          removePresentItem(compactSet, index - 10);
+          removePresentItem(arraySet, index - 10);
         }
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
         for (long i = index + 1; i < index + 10; i++) {
-          assertFalse(compactSet.contains(itemFactory.createItem(i)));
+          assertFalse(arraySet.contains(itemFactory.createItem(i)));
         }
       }
       watch.stop();
@@ -117,15 +117,15 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** ten items, successful-lookup heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 10; index++) {
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
       }
       for (long index = 10; index < 200000; index++) {
-        removePresentItem(compactSet, index - 10);
-        addMissingItem(compactSet, index);
+        removePresentItem(arraySet, index - 10);
+        addMissingItem(arraySet, index);
         for (long i = index - 9; i <= index; i++) {
-          assertTrue(compactSet.contains(itemFactory.createItem(i)));
+          assertTrue(arraySet.contains(itemFactory.createItem(i)));
         }
       }
       watch.stop();
@@ -139,12 +139,12 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** 400 items, update heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 1000000; index++) {
         if (index >= 400) {
-          removePresentItem(compactSet, index - 400);
+          removePresentItem(arraySet, index - 400);
         }
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
       }
       watch.stop();
       System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
@@ -156,14 +156,14 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** 400 items, failed-lookup heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 200000; index++) {
         if (index >= 400) {
-          removePresentItem(compactSet, index - 400);
+          removePresentItem(arraySet, index - 400);
         }
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
         for (long i = index + 1; i < index + 10; i++) {
-          assertFalse(compactSet.contains(itemFactory.createItem(i)));
+          assertFalse(arraySet.contains(itemFactory.createItem(i)));
         }
       }
       watch.stop();
@@ -176,15 +176,15 @@ public class SetPerformanceTests<T> {
     System.out.println(" ** 400 items, successful-lookup heavy: " + configName + " ** ");
     for (int run = 0; run < 3; run++) {
       Stopwatch watch = Stopwatch.createStarted();
-      Set<T> compactSet = setFactory.get();
+      Set<T> arraySet = setFactory.get();
       for (long index = 0; index < 400; index++) {
-        addMissingItem(compactSet, index);
+        addMissingItem(arraySet, index);
       }
       for (long index = 400; index < 200000; index++) {
-        removePresentItem(compactSet, index - 400);
-        addMissingItem(compactSet, index);
+        removePresentItem(arraySet, index - 400);
+        addMissingItem(arraySet, index);
         for (long i = index - 9; i <= index; i++) {
-          assertTrue(compactSet.contains(itemFactory.createItem(i)));
+          assertTrue(arraySet.contains(itemFactory.createItem(i)));
         }
       }
       watch.stop();
@@ -283,15 +283,15 @@ public class SetPerformanceTests<T> {
     }
   }
 
-  private void addMissingItem(Set<T> compactSet, long index) {
+  private void addMissingItem(Set<T> arraySet, long index) {
     T item = itemFactory.createItem(index);
     assertTrue("Failed to insert item #" + (index + 1) + ", " + item,
-        compactSet.add(item));
+        arraySet.add(item));
   }
 
-  private void removePresentItem(Set<T> compactSet, long index) {
+  private void removePresentItem(Set<T> arraySet, long index) {
     T item = itemFactory.createItem(index);
     assertTrue("Failed to remove item #" + (index + 1) + ", " + item,
-        compactSet.remove(item));
+        arraySet.remove(item));
   }
 }

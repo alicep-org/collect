@@ -63,7 +63,7 @@ import java.util.TreeMap;
  * impact if key hashCode/equality checks are expensive.
  *
  * <p><strong>Note that this implementation is not synchronized.</strong>
- * If multiple threads access a compact map concurrently, and at least
+ * If multiple threads access an AraryMap concurrently, and at least
  * one of the threads modifies the map structurally, it <em>must</em> be
  * synchronized externally.  This is typically accomplished by
  * synchronizing on some object that naturally encapsulates the map.
@@ -72,7 +72,7 @@ import java.util.TreeMap;
  * {@link Collections#synchronizedMap Collections.synchronizedMap}
  * method.  This is best done at creation time, to prevent accidental
  * unsynchronized access to the map:<pre>
- *   Map&lt;...&gt; m = Collections.synchronizedMap(new CompactMap&lt;&gt;(...));</pre>
+ *   Map&lt;...&gt; m = Collections.synchronizedMap(new ArrayMap&lt;&gt;(...));</pre>
  *
  * A structural modification is any operation that adds or deletes one or more
  * mappings or, in the case of access-ordered linked hash maps, affects
@@ -103,7 +103,7 @@ import java.util.TreeMap;
  * @see     HashMap
  * @see     TreeMap
  */
-public class CompactMap<K, V> extends AbstractMap<K, V> implements Serializable {
+public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
 
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
@@ -122,7 +122,7 @@ public class CompactMap<K, V> extends AbstractMap<K, V> implements Serializable 
   /**
    * Constructs an empty map with an initial capacity of ten.
    */
-  public CompactMap() {
+  public ArrayMap() {
     this(DEFAULT_CAPACITY);
   }
 
@@ -137,8 +137,8 @@ public class CompactMap<K, V> extends AbstractMap<K, V> implements Serializable 
    * @param <K> the type of keys maintained by the map
    * @param <V> the type of mapped values
    */
-  public static <K, V> CompactMap<K, V> withInitialCapacity(int initialCapacity) {
-    return new CompactMap<>(initialCapacity);
+  public static <K, V> ArrayMap<K, V> withInitialCapacity(int initialCapacity) {
+    return new ArrayMap<>(initialCapacity);
   }
 
   /**
@@ -147,12 +147,12 @@ public class CompactMap<K, V> extends AbstractMap<K, V> implements Serializable 
    * @param  entries the map whose mappings are to be placed in this map
    * @throws NullPointerException if the specified map is null
    */
-  public CompactMap(Map<? extends K, ? extends V> entries) {
+  public ArrayMap(Map<? extends K, ? extends V> entries) {
     this(entries.size());
     putAll(entries);
   }
 
-  private CompactMap(int initialCapacity) {
+  private ArrayMap(int initialCapacity) {
     checkArgument(initialCapacity >= 0, "initialCapacity must be non-negative");
     objects = new Object[2 * Math.max(initialCapacity, DEFAULT_CAPACITY)];
     lookup = newLookupArray();

@@ -60,7 +60,7 @@ import java.util.Spliterators;
  * impact if element hashCode/equality checks are expensive.
  *
  * <p><strong>Note that this implementation is not synchronized.</strong>
- * If multiple threads access a compact set concurrently, and at least
+ * If multiple threads access an ArraySet concurrently, and at least
  * one of the threads modifies the set, it <em>must</em> be synchronized
  * externally.  This is typically accomplished by synchronizing on some
  * object that naturally encapsulates the set.
@@ -69,7 +69,7 @@ import java.util.Spliterators;
  * {@link Collections#synchronizedSet Collections.synchronizedSet}
  * method.  This is best done at creation time, to prevent accidental
  * unsynchronized access to the set: <pre>
- *   Set&lt;...&gt; s = Collections.synchronizedSet(new CompactSet&lt;&gt;(...));</pre>
+ *   Set&lt;...&gt; s = Collections.synchronizedSet(new ArraySet&lt;&gt;(...));</pre>
  *
  * <p>The iterators returned by this class's <tt>iterator</tt> method are
  * <em>fail-fast</em>: if the set is modified at any time after the iterator
@@ -117,7 +117,7 @@ import java.util.Spliterators;
  * @see     HashSet
  * @see     LinkedHashSet
  */
-public class CompactSet<E> extends AbstractSet<E> implements Serializable {
+public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
@@ -132,7 +132,7 @@ public class CompactSet<E> extends AbstractSet<E> implements Serializable {
   /**
    * Constructs an empty set with an initial capacity of ten.
    */
-  public CompactSet() {
+  public ArraySet() {
     this(DEFAULT_CAPACITY);
   }
 
@@ -146,8 +146,8 @@ public class CompactSet<E> extends AbstractSet<E> implements Serializable {
    *
    * @param <E> the type of elements maintained by the set
    */
-  public static <E> CompactSet<E> withInitialCapacity(int initialCapacity) {
-    return new CompactSet<>(initialCapacity);
+  public static <E> ArraySet<E> withInitialCapacity(int initialCapacity) {
+    return new ArraySet<>(initialCapacity);
   }
 
   /**
@@ -159,12 +159,12 @@ public class CompactSet<E> extends AbstractSet<E> implements Serializable {
    * @param elements the collection whose elements are to be placed into this list
    * @throws NullPointerException if the specified collection is null
    */
-  public CompactSet(Collection<? extends E> elements) {
+  public ArraySet(Collection<? extends E> elements) {
     this(elements.size());
     addAll(elements);
   }
 
-  private CompactSet(int initialCapacity) {
+  private ArraySet(int initialCapacity) {
     checkArgument(initialCapacity >= 0, "initialCapacity must be non-negative");
     objects = new Object[Math.max(initialCapacity, DEFAULT_CAPACITY)];
     lookup = newLookupArray();

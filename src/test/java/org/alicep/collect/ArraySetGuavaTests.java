@@ -7,7 +7,7 @@ import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.SetFeature;
 
 import junit.framework.TestSuite;
-import org.alicep.collect.CompactSetGuavaTests.GuavaTests;
+import org.alicep.collect.ArraySetGuavaTests.GuavaTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -17,7 +17,7 @@ import java.util.Set;
 
 @RunWith(Suite.class)
 @SuiteClasses(GuavaTests.class)
-public class CompactSetGuavaTests {
+public class ArraySetGuavaTests {
 
   public static class GuavaTests {
     public static TestSuite suite() {
@@ -25,7 +25,7 @@ public class CompactSetGuavaTests {
           .using(new TestStringSetGenerator() {
             @Override
             protected Set<String> create(String[] elements) {
-              return new CompactSet<>(Arrays.asList(elements));
+              return new ArraySet<>(Arrays.asList(elements));
             }
           })
           .withFeatures(
@@ -35,7 +35,7 @@ public class CompactSetGuavaTests {
               CollectionFeature.KNOWN_ORDER,
               CollectionFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION,
               CollectionSize.ANY)
-          .named("CompactSetGuavaTests")
+          .named("ArraySetGuavaTests")
           .createTestSuite();
     }
   }
