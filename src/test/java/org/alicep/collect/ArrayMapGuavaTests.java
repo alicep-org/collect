@@ -7,7 +7,7 @@ import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
 
 import junit.framework.TestSuite;
-import org.alicep.collect.CompactMapGuavaTests.GuavaTests;
+import org.alicep.collect.ArrayMapGuavaTests.GuavaTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -17,7 +17,7 @@ import java.util.Map.Entry;
 
 @RunWith(Suite.class)
 @SuiteClasses(GuavaTests.class)
-public class CompactMapGuavaTests {
+public class ArrayMapGuavaTests {
 
   public static class GuavaTests {
 
@@ -26,7 +26,7 @@ public class CompactMapGuavaTests {
           .using(new TestStringMapGenerator() {
             @Override
             protected Map<String, String> create(Entry<String, String>[] entries) {
-              Map<String, String> map = new CompactMap<>();
+              Map<String, String> map = new ArrayMap<>();
               for (Entry<String, String> entry : entries) {
                 map.put(entry.getKey(), entry.getValue());
               }
@@ -42,7 +42,7 @@ public class CompactMapGuavaTests {
               CollectionFeature.KNOWN_ORDER,
               CollectionFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION,
               CollectionSize.ANY)
-          .named("CompactMapGuavaTests")
+          .named("ArrayMapGuavaTests")
           .createTestSuite();
     }
   }

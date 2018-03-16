@@ -55,8 +55,8 @@ public class MapTests<T> {
   public static Iterable<Config<?>> data() {
     ImmutableList.Builder<Config<?>> data = ImmutableList.builder();
     for (int size : SIZES) {
-      data.add(new Config<>(CompactMap::new, longs, size));
-      data.add(new Config<>(CompactMap::new, strings, size));
+      data.add(new Config<>(ArrayMap::new, longs, size));
+      data.add(new Config<>(ArrayMap::new, strings, size));
     }
     return data.build();
   }
@@ -73,55 +73,55 @@ public class MapTests<T> {
 
   @Test
   public void validateAThousandInsertions() {
-    Map<T,T> compactSet = mapFactory.get();
+    Map<T,T> arraySet = mapFactory.get();
     for (long index = 0; index < 1000; index++) {
       if (index >= size) {
-        removePresentItem(compactSet, index - size);
-        verifyItems(compactSet, index - size + 1, index - 1);
+        removePresentItem(arraySet, index - size);
+        verifyItems(arraySet, index - size + 1, index - 1);
       }
-      addMissingItem(compactSet, index);
-      verifyItems(compactSet, Math.max(index - size + 1, 0), index);
+      addMissingItem(arraySet, index);
+      verifyItems(arraySet, Math.max(index - size + 1, 0), index);
     }
   }
 
   @Test
   public void validateAThousandUpdates() {
-    Map<T,T> compactSet = mapFactory.get();
+    Map<T,T> arraySet = mapFactory.get();
     for (long index = 0; index < 1000; ++index) {
       T key = itemFactory.createItem(index % size);
       T value = itemFactory.createItem(index);
       T expectedOldValue = (index < size) ? null : itemFactory.createItem(index - size);
       assertEquals("Wrong value when putting item #" + (index + 1) + " at " + key,
-          expectedOldValue, compactSet.put(key, value));
+          expectedOldValue, arraySet.put(key, value));
     }
   }
 
-  private void addMissingItem(Map<T,T> compactSet, long index) {
+  private void addMissingItem(Map<T,T> arraySet, long index) {
     T key = itemFactory.createItem(index);
     T value = itemFactory.createItem(index + 100000);
     assertNull("Value already inserted for item #" + (index + 1) + ", " + key,
-        compactSet.put(key, value));
+        arraySet.put(key, value));
   }
 
-  private void removePresentItem(Map<T,T> compactSet, long index) {
+  private void removePresentItem(Map<T,T> arraySet, long index) {
     T item = itemFactory.createItem(index);
     T value = itemFactory.createItem(index + 100000);
     assertEquals("Wrong value when removing item #" + (index + 1) + ", " + item,
-        value, compactSet.remove(item));
+        value, arraySet.remove(item));
   }
 
-  private void verifyItems(Map<T,T> compactSet, long firstIndex, long lastIndex) {
+  private void verifyItems(Map<T,T> arraySet, long firstIndex, long lastIndex) {
     assertTrue(lastIndex >= firstIndex);
     for (long index = firstIndex - 20; index < firstIndex; index++) {
-      assertNull("Regained item " + (index + 1), compactSet.get(itemFactory.createItem(index)));
+      assertNull("Regained item " + (index + 1), arraySet.get(itemFactory.createItem(index)));
     }
     for (long index = firstIndex; index <= lastIndex; index++) {
       T value = itemFactory.createItem(index + 100000);
       assertEquals("Wrong/lost item " + (index + 1) + " in range [" + (firstIndex + 1) + ", " + (lastIndex + 1) + "]",
-          value, compactSet.get(itemFactory.createItem(index)));
+          value, arraySet.get(itemFactory.createItem(index)));
     }
     for (long index = lastIndex + 1; index <= lastIndex + 20; index++) {
-      assertNull("Unexpected item " + (index + 1), compactSet.get(itemFactory.createItem(index)));
+      assertNull("Unexpected item " + (index + 1), arraySet.get(itemFactory.createItem(index)));
     }
   }
 }
