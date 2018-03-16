@@ -35,6 +35,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.stream.Collector;
 
 /**
  * <p>Hash table and array implementation of the {@link Set} interface,
@@ -128,6 +129,10 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private Object[] objects;
   private int head = 0;
   private long[] lookup;
+
+  public static <T> Collector<T, ?, Set<T>> toArraySet() {
+    return Collector.of(ArraySet::new, Set::add, (left, right) -> { left.addAll(right); return left; });
+  }
 
   /**
    * Constructs an empty set with an initial capacity of ten.
