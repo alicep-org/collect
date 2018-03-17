@@ -164,6 +164,13 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
   }
 
   @Override
+  public boolean containsKey(Object key) {
+    Object comparisonObject = (key == null) ? Reserved.NULL : key;
+    long index = lookup(comparisonObject);
+    return (index >= 0);
+  }
+
+  @Override
   public V get(Object key) {
     Object comparisonObject = (key == null) ? Reserved.NULL : key;
     long index = lookup(comparisonObject);
