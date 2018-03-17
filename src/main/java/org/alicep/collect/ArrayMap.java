@@ -17,6 +17,7 @@ package org.alicep.collect;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import com.google.common.base.Objects;
 
@@ -219,6 +221,20 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
     V oldValue = (V) objects[(int) index * 2 + 1];
     deleteObjectAtIndex((int) index);
     return oldValue;
+  }
+
+  @Override
+  public void forEach(BiConsumer<? super K, ? super V> action) {
+    checkNotNull(action);
+    for (int i = 0; i < head; ++i) {
+      @SuppressWarnings("unchecked")
+      K key = (K) objects[i * 2];
+      @SuppressWarnings("unchecked")
+      V value = (V) objects[i * 2 + 1];
+      if (key != null) {
+        action.accept(key == Reserved.NULL ? null : key, value);
+      }
+    }
   }
 
   @Override
