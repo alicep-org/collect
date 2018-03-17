@@ -4,27 +4,24 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.google.common.base.Stopwatch;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.function.Supplier;
+
+import org.alicep.collect.BenchmarkRunner.Benchmark;
+import org.apache.commons.math3.distribution.ZipfDistribution;
+import org.apache.commons.math3.random.Well19937c;
+import org.junit.Ignore;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized.Parameters;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
-import org.apache.commons.math3.distribution.ZipfDistribution;
-import org.apache.commons.math3.random.Well19937c;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
-
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-
 @Ignore("Manual performance tests")
-@RunWith(Parameterized.class)
+@RunWith(BenchmarkRunner.class)
 public class SetPerformanceTests<T> {
 
   private static final HashFunction hashing = Hashing.sha256();
@@ -52,7 +49,8 @@ public class SetPerformanceTests<T> {
     }
   }
 
-  private static final ImmutableList<Config<?>> CONFIGURATIONS = ImmutableList.of(
+  @Configuration
+  public static final ImmutableList<Config<?>> CONFIGURATIONS = ImmutableList.of(
       new Config<>(HashSet::new, longs),
       new Config<>(LinkedHashSet::new, longs),
       new Config<>(ArraySet::new, longs),
@@ -60,226 +58,160 @@ public class SetPerformanceTests<T> {
       new Config<>(LinkedHashSet::new, strings),
       new Config<>(ArraySet::new, strings));
 
-  private final String configName;
   private final Supplier<Set<T>> setFactory;
   private final ItemFactory<T> itemFactory;
 
-  @Parameters(name= "{0}")
-  public static Iterable<Config<?>> data() {
-      return CONFIGURATIONS;
-  }
-
   public SetPerformanceTests(Config<T> config) {
-    this.configName = config.toString();
+    config.toString();
     this.setFactory = config.setFactory;
     this.itemFactory = config.itemFactory;
   }
 
-  @Test
+  @Benchmark("10 items, many updates")
   public void tenItems_updateHeavy() {
-    System.out.println(" ** ten items, update heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 1000000; index++) {
-        if (index >= 10) {
-          removePresentItem(arraySet, index - 10);
-        }
-        addMissingItem(arraySet, index);
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
-    }
-  }
-
-  @Test
-  public void tenItems_failedLookupHeavy() {
-    System.out.println(" ** ten items, failed-lookup heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 200000; index++) {
-        if (index >= 10) {
-          removePresentItem(arraySet, index - 10);
-        }
-        addMissingItem(arraySet, index);
-        for (long i = index + 1; i < index + 10; i++) {
-          assertFalse(arraySet.contains(itemFactory.createItem(i)));
-        }
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
-    }
-  }
-
-  @Test
-  public void tenItems_successfulLookupHeavy() {
-    System.out.println(" ** ten items, successful-lookup heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 10; index++) {
-        addMissingItem(arraySet, index);
-      }
-      for (long index = 10; index < 200000; index++) {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 10000; index++) {
+      if (index >= 10) {
         removePresentItem(arraySet, index - 10);
-        addMissingItem(arraySet, index);
-        for (long i = index - 9; i <= index; i++) {
-          assertTrue(arraySet.contains(itemFactory.createItem(i)));
-        }
       }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+      addMissingItem(arraySet, index);
     }
   }
 
-  @Test
+  @Benchmark("10 items, many failed lookups")
+  public void tenItems_failedLookupHeavy() {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 2000; index++) {
+      if (index >= 10) {
+        removePresentItem(arraySet, index - 10);
+      }
+      addMissingItem(arraySet, index);
+      for (long i = index + 1; i < index + 10; i++) {
+        assertFalse(arraySet.contains(itemFactory.createItem(i)));
+      }
+    }
+  }
+
+  @Benchmark("10 items, many successful lookup")
+  public void tenItems_successfulLookupHeavy() {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 10; index++) {
+      addMissingItem(arraySet, index);
+    }
+    for (long index = 10; index < 2000; index++) {
+      removePresentItem(arraySet, index - 10);
+      addMissingItem(arraySet, index);
+      for (long i = index - 9; i <= index; i++) {
+        assertTrue(arraySet.contains(itemFactory.createItem(i)));
+      }
+    }
+  }
+
+  @Benchmark("400 items, many updates")
   public void fourHundredItems_updateHeavy() {
     // Four hundred items allows a 10-bit word index saving an extra ~15% over 16-bit word indices
-    System.out.println(" ** 400 items, update heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 1000000; index++) {
-        if (index >= 400) {
-          removePresentItem(arraySet, index - 400);
-        }
-        addMissingItem(arraySet, index);
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
-    }
-  }
-
-  @Test
-  public void fourHundredItems_failedLookupHeavy() {
-    System.out.println(" ** 400 items, failed-lookup heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 200000; index++) {
-        if (index >= 400) {
-          removePresentItem(arraySet, index - 400);
-        }
-        addMissingItem(arraySet, index);
-        for (long i = index + 1; i < index + 10; i++) {
-          assertFalse(arraySet.contains(itemFactory.createItem(i)));
-        }
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
-    }
-  }
-
-  @Test
-  public void fourHundredItems_successfulLookupHeavy() {
-    System.out.println(" ** 400 items, successful-lookup heavy: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> arraySet = setFactory.get();
-      for (long index = 0; index < 400; index++) {
-        addMissingItem(arraySet, index);
-      }
-      for (long index = 400; index < 200000; index++) {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 10000; index++) {
+      if (index >= 400) {
         removePresentItem(arraySet, index - 400);
-        addMissingItem(arraySet, index);
-        for (long i = index - 9; i <= index; i++) {
-          assertTrue(arraySet.contains(itemFactory.createItem(i)));
-        }
       }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+      addMissingItem(arraySet, index);
     }
   }
 
-  @Test
+  @Benchmark("400 items, many failed lookups")
+  public void fourHundredItems_failedLookupHeavy() {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 2000; index++) {
+      if (index >= 400) {
+        removePresentItem(arraySet, index - 400);
+      }
+      addMissingItem(arraySet, index);
+      for (long i = index + 1; i < index + 10; i++) {
+        assertFalse(arraySet.contains(itemFactory.createItem(i)));
+      }
+    }
+  }
+
+  @Benchmark("400 items, many successful lookups")
+  public void fourHundredItems_successfulLookupHeavy() {
+    Set<T> arraySet = setFactory.get();
+    for (long index = 0; index < 400; index++) {
+      addMissingItem(arraySet, index);
+    }
+    for (long index = 400; index < 2000; index++) {
+      removePresentItem(arraySet, index - 400);
+      addMissingItem(arraySet, index);
+      for (long i = index - 9; i <= index; i++) {
+        assertTrue(arraySet.contains(itemFactory.createItem(i)));
+      }
+    }
+  }
+
+  @Benchmark("Between 7 and 100 items, many updates")
   public void between7And100Items_updateHeavy() {
     varyingSizesTest(7, 100, 10000);
   }
 
-  @Test
+  @Benchmark("Between 7 and 10,000 items, many updates")
   public void between7And10000Items_updateHeavy() {
     varyingSizesTest(7, 10000, 100);
   }
 
-  @Test
+  @Benchmark("Between 1,000 and 1,000,000 items, many updates")
   public void between1000And1000000Items_updateHeavy() {
     varyingSizesTest(1000, 1000000, 2);
   }
 
   private void varyingSizesTest(long min, long max, int waves) {
-    System.out.println(" ** " + min + "–" + max + " items: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> set = setFactory.get();
-      for (int wave = 0; wave < waves; wave++) {
-        for (long index = (wave == 0) ? 0 : min + (max - min) * wave; index < min + (max - min) * (wave + 1); index++) {
-          addMissingItem(set, index);
-        }
-        assertEquals(max, set.size());
-        for (long index = (max - min) * wave; index < (max - min) * (wave + 1); ++index) {
-          removePresentItem(set, index);
-        }
-        assertEquals(min, set.size());
+    Set<T> set = setFactory.get();
+    for (int wave = 0; wave < waves; wave++) {
+      for (long index = (wave == 0) ? 0 : min + (max - min) * wave; index < min + (max - min) * (wave + 1); index++) {
+        addMissingItem(set, index);
       }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+      assertEquals(max, set.size());
+      for (long index = (max - min) * wave; index < (max - min) * (wave + 1); ++index) {
+        removePresentItem(set, index);
+      }
+      assertEquals(min, set.size());
     }
   }
 
-  @Test
+  @Benchmark("Large cache, weak zipf distribution")
   public void largeCache_weakZipfDistribution() {
-    System.out.println(" ** large cache, weak zipf distribution: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> set = setFactory.get();
-      // > 50% of all accesses will be to the same element.
-      // > 90% of all accesses will be to the same ten elements.
-      // > 99% of all accesses will be to the same 142 elements.
-      ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 1000, 1.8);
-      for (long i = 0; i < 2000000; i++) {
-        T item = itemFactory.createItem(d.sample());
-        set.add(item);
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+    Set<T> set = setFactory.get();
+    // > 50% of all accesses will be to the same element.
+    // > 90% of all accesses will be to the same ten elements.
+    // > 99% of all accesses will be to the same 142 elements.
+    ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 1000, 1.8);
+    for (long i = 0; i < 20000; i++) {
+      T item = itemFactory.createItem(d.sample());
+      set.add(item);
     }
   }
 
-  @Test
+  @Benchmark("Large cache, strong zipf distribution")
   public void largeCache_strongZipfDistribution() {
-    System.out.println(" ** large cache, strong zipf distribution: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> set = setFactory.get();
-      // > 80% of all accesses will be to the same element.
-      // > 99% of all accesses will be to the same six elements.
-      // > 99.9% of all accesses will be to the same 21 elements.
-      ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 1000, 3);
-      for (long i = 0; i < 2000000; i++) {
-        T item = itemFactory.createItem(d.sample());
-        set.add(item);
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+    Set<T> set = setFactory.get();
+    // > 80% of all accesses will be to the same element.
+    // > 99% of all accesses will be to the same six elements.
+    // > 99.9% of all accesses will be to the same 21 elements.
+    ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 1000, 3);
+    for (long i = 0; i < 20000; i++) {
+      T item = itemFactory.createItem(d.sample());
+      set.add(item);
     }
   }
 
-  @Test
+  @Benchmark("Huge cache, weak zipf distribution")
   public void hugeCache_weakZipfDistribution() {
-    System.out.println(" ** huge cache, weak zipf distribution: " + configName + " ** ");
-    for (int run = 0; run < 3; run++) {
-      Stopwatch watch = Stopwatch.createStarted();
-      Set<T> set = setFactory.get();
-      // > 50% of all accesses will be to the same twelve elements.
-      // > 90% of all accesses will be to the same 3000 elements.
-      ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 100000, 1.2);
-      for (long i = 0; i < 2000000; i++) {
-        T item = itemFactory.createItem(d.sample());
-        set.add(item);
-      }
-      watch.stop();
-      System.out.println("Run #" + (run + 1) + " took " + watch.elapsed(TimeUnit.MILLISECONDS) + " ms");
+    Set<T> set = setFactory.get();
+    // > 50% of all accesses will be to the same twelve elements.
+    // > 90% of all accesses will be to the same 3000 elements.
+    ZipfDistribution d = new ZipfDistribution(new Well19937c(-1), 100000, 1.2);
+    for (long i = 0; i < 20000; i++) {
+      T item = itemFactory.createItem(d.sample());
+      set.add(item);
     }
   }
 
