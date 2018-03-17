@@ -9,6 +9,7 @@ gen/
 .classpath
 .project
 .test
+.settings
 
 # Intellij project files
 *.iml
