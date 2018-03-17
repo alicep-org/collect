@@ -1,5 +1,7 @@
 package org.alicep.collect;
 
+import static org.alicep.collect.ItemFactory.longs;
+import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -10,29 +12,19 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import org.alicep.collect.BenchmarkRunner.Benchmark;
+import org.alicep.collect.BenchmarkRunner.Configuration;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.commons.math3.random.Well19937c;
 import org.junit.Ignore;
 import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized.Parameters;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 
 @Ignore("Manual performance tests")
 @RunWith(BenchmarkRunner.class)
 public class SetPerformanceTests<T> {
 
-  private static final HashFunction hashing = Hashing.sha256();
-  private static final ItemFactory<Long> longs = index -> hashing.hashLong(index).asLong();
-  private static final ItemFactory<String> strings = index -> hashing.hashLong(index).toString();
-
-  private interface ItemFactory<T> {
-    T createItem(long index);
-  }
-
-  public static class Config<T> {
+  private static class Config<T> {
     private final Supplier<Set<T>> setFactory;
     private final ItemFactory<T> itemFactory;
 
