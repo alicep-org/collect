@@ -10,7 +10,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Supplier;
 
 import org.alicep.collect.BenchmarkRunner.Benchmark;
@@ -21,7 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 @RunWith(BenchmarkRunner.class)
-public class SmallMapPerformanceTests<K, V> {
+public class MidMapPerformanceTests<K, V> {
 
   private static class Config<K, V> {
     private final Supplier<Map<K, V>> mapFactory;
@@ -48,12 +47,12 @@ public class SmallMapPerformanceTests<K, V> {
 
   @Configuration
   public static final ImmutableList<Config<?, ?>> CONFIGURATIONS = ImmutableList.of(
-      new Config<>(HashMap::new, longs, strings),
-      new Config<>(LinkedHashMap::new, longs, strings),
-      new Config<>(ArrayMap::new, longs, strings),
-      new Config<>(HashMap::new, strings, strings),
-      new Config<>(LinkedHashMap::new, strings, strings),
-      new Config<>(ArrayMap::new, strings, strings));
+      new Config<>(() -> new HashMap<>(1000), longs, strings),
+      new Config<>(() -> new LinkedHashMap<>(1000), longs, strings),
+      new Config<>(() -> ArrayMap.withInitialCapacity(1000), longs, strings),
+      new Config<>(() -> new HashMap<>(1000), strings, strings),
+      new Config<>(() -> new LinkedHashMap<>(1000), strings, strings),
+      new Config<>(() -> ArrayMap.withInitialCapacity(1000), strings, strings));
 
   private final Supplier<Map<K, V>> mapFactory;
   private final ItemFactory<K> keyFactory;
@@ -63,63 +62,48 @@ public class SmallMapPerformanceTests<K, V> {
 
   int i = 0;
 
-  public SmallMapPerformanceTests(Config<K, V> config) {
+  public MidMapPerformanceTests(Config<K, V> config) {
     mapFactory = config.mapFactory;
     keyFactory = config.keyFactory;
     valueFactory = config.valueFactory;
 
     littleMap = mapFactory.get();
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 1000; i++) {
       littleMap.put(keyFactory.createItem(i), valueFactory.createItem(i));
     }
     entries = ImmutableMap.copyOf(littleMap);
   }
 
-  @Benchmark("Create a 6-element map")
+  @Benchmark("Create a 1K-element map")
   public void create() {
     Map<K, V> map = mapFactory.get();
     entries.forEach((k, v) -> map.put(k, v));
   }
 
-  @Benchmark("forEach: Iterate through a 6-element map")
-  public void forEach() {
+  @Benchmark("Iterate through a 1K-element map")
+  public void iterate() {
     littleMap.forEach((k, v) -> assertNotNull(v));
   }
 
-  @Benchmark("keySet: Iterate through keys of 6-element map")
-  public void keySetIterate() {
-    for (K key : littleMap.keySet()) {
-      assertNotNull(key);
-    }
-  }
-
-  @Benchmark("entrySet: Iterate through entries of 6-element map")
-  public void entrySetIterate() {
-    for (Entry<K, V> entry : littleMap.entrySet()) {
-      assertNotNull(entry.getKey());
-      assertNotNull(entry.getValue());
-    }
-  }
-
-  @Benchmark("get: Hit in a 6-element map")
+  @Benchmark("get: Hit in a 1K-element map")
   public void getHit() {
     assertNotNull(littleMap.get(keyFactory.createItem(i)));
-    if (++i == 6) i = 0;
+    if (++i == 1000) i = 0;
   }
 
-  @Benchmark("get: Miss in a 6-element map")
+  @Benchmark("get: Miss in a 1K-element map")
   public void getMiss() {
-    assertNull(littleMap.get(keyFactory.createItem(i++ + 6)));
+    assertNull(littleMap.get(keyFactory.createItem(i++ + 1000)));
   }
 
-  @Benchmark("containsKey: Hit in a 6-element map")
+  @Benchmark("containsKey: Hit in a 1K-element map")
   public void containsKeyHit() {
     assertTrue(littleMap.containsKey(keyFactory.createItem(i)));
-    if (++i == 6) i = 0;
+    if (++i == 1000) i = 0;
   }
 
-  @Benchmark("containsKey: Miss in a 6-element map")
+  @Benchmark("containsKey: Miss in a 1K-element map")
   public void containsKeyMiss() {
-    assertFalse(littleMap.containsKey(keyFactory.createItem(i++ + 6)));
+    assertFalse(littleMap.containsKey(keyFactory.createItem(i++ + 1000)));
   }
 }
