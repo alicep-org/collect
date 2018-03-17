@@ -19,8 +19,6 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
-import com.google.common.base.Objects;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.StreamCorruptedException;
@@ -38,6 +36,8 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
+
+import com.google.common.base.Objects;
 
 /**
  * <p>Hash table and array implementation of the {@link Map} interface,
@@ -112,6 +112,7 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
   private int size = 0;
   private int modCount = 0;
   private Object[] objects;
+  // Will always point just past the last object in the array
   private int head = 0;
   private long[] lookup;
 
@@ -331,12 +332,18 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
   }
 
   private void deleteObjectAtIndex(int index) {
-    assertState(objects[index * 2] != null, "Cannot delete empty cell");
+    checkState(objects[index * 2] != null);
     assertState(size != 0, "Size is 0 but a cell is not empty");
     objects[index * 2] = null;
     objects[index * 2 + 1] = null;
     size--;
     modCount++;
+    if (index == head - 1) {
+      head--;
+      while (head > 0 && objects[head * 2 - 2] == null) {
+        head--;
+      }
+    }
   }
 
   private void compact() {
@@ -356,7 +363,7 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
         objects[target * 2 + 1] = objects[source * 2 + 1];
       }
       long freeLookupCell = -(lookup(e) + 1);
-      checkState(freeLookupCell >= 0);
+      assertState(freeLookupCell >= 0, "Free lookup cell is negative (%s)", freeLookupCell);
       addLookup((int) freeLookupCell, target);
       target++;
     }
@@ -408,104 +415,6 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
     }
   }
 
-  private class EntryImpl implements Entry<K, V> {
-    private Object keyObject;
-    private int index;
-
-    EntryImpl(Object keyObject, int index) {
-      this.keyObject = keyObject;
-      this.index = index;
-    }
-
-    @Override
-    public K getKey() {
-      @SuppressWarnings("unchecked")
-      K key = (keyObject == Reserved.NULL) ? null : (K) keyObject;
-      return key;
-    }
-
-    @Override
-    public V getValue() {
-      if (objects[index * 2] != keyObject) {
-        long newIndex = lookup(keyObject);
-        checkState(newIndex >= 0, "Mapping for key '%s' removed", getKey());
-        index = (int) newIndex;
-        keyObject = objects[index * 2];
-      }
-      @SuppressWarnings("unchecked")
-      V value = (V) objects[index * 2 + 1];
-      return value;
-    }
-
-    @Override
-    public V setValue(V value) {
-      if (objects[index * 2] != keyObject) {
-        long newIndex = lookup(keyObject);
-        checkState(newIndex >= 0, "Mapping for key '%s' removed", getKey());
-        index = (int) newIndex;
-        keyObject = objects[index * 2];
-      }
-      @SuppressWarnings("unchecked")
-      V oldValue = (V) objects[index * 2 + 1];
-      objects[index * 2 + 1] = value;
-      return oldValue;
-    }
-
-    /**
-     * Compares the specified object with this entry for equality.
-     * Returns <tt>true</tt> if the given object is also a map entry and
-     * the two entries represent the same mapping.  More formally, two
-     * entries <tt>e1</tt> and <tt>e2</tt> represent the same mapping
-     * if<pre>
-     *     (e1.getKey()==null ?
-     *      e2.getKey()==null : e1.getKey().equals(e2.getKey()))  &amp;&amp;
-     *     (e1.getValue()==null ?
-     *      e2.getValue()==null : e1.getValue().equals(e2.getValue()))
-     * </pre>
-     * This ensures that the <tt>equals</tt> method works properly across
-     * different implementations of the <tt>Map.Entry</tt> interface.
-     *
-     * @param o object to be compared for equality with this map entry
-     * @return <tt>true</tt> if the specified object is equal to this map
-     *         entry
-     */
-    @Override
-    public boolean equals(Object o) {
-      if (!(o instanceof Entry)) {
-        return false;
-      }
-      Entry<?, ?> other = (Entry<?, ?>) o;
-      return Objects.equal(getKey(), other.getKey()) && Objects.equal(getValue(), other.getValue());
-    }
-
-    /**
-     * Returns the hash code value for this map entry.  The hash code
-     * of a map entry <tt>e</tt> is defined to be: <pre>
-     *     (e.getKey()==null   ? 0 : e.getKey().hashCode()) ^
-     *     (e.getValue()==null ? 0 : e.getValue().hashCode())
-     * </pre>
-     * This ensures that <tt>e1.equals(e2)</tt> implies that
-     * <tt>e1.hashCode()==e2.hashCode()</tt> for any two Entries
-     * <tt>e1</tt> and <tt>e2</tt>, as required by the general
-     * contract of <tt>Object.hashCode</tt>.
-     *
-     * @return the hash code value for this map entry
-     * @see Object#hashCode()
-     * @see Object#equals(Object)
-     * @see #equals(Object)
-     */
-    @Override
-    public int hashCode() {
-      Object value = getValue();
-      return (keyObject == Reserved.NULL ? 0 : keyObject.hashCode()) ^ (value == null ? 0 : value.hashCode());
-    }
-
-    @Override
-    public String toString() {
-      return getKey() + "=" + getValue();
-    }
-  }
-
   /* Entry set */
 
   private class EntrySet extends AbstractSet<Entry<K, V>> {
@@ -525,58 +434,146 @@ public class ArrayMap<K, V> extends AbstractMap<K, V> implements Serializable {
     public int size() {
       return size;
     }
+  }
 
-    /* Iteration */
+  /* Iteration */
 
-    private class IteratorImpl implements Iterator<Entry<K, V>> {
-      private int expectedModCount;
-      private int index;
-      private int nextIndex;
+  private class IteratorImpl implements Iterator<Entry<K, V>> {
+    private int validAt;
+    private int index;
 
-      IteratorImpl() {
-        expectedModCount = modCount;
-        index = -1;
-        nextIndex = 0;
-        while (nextIndex < head && objects[nextIndex * 2] == null) {
-          nextIndex++;
-        }
+    IteratorImpl() {
+      validAt = modCount;
+      index = -1;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (modCount != validAt) {
+        throw new ConcurrentModificationException();
+      }
+      return index < head - 1;
+    }
+
+    @Override
+    public Entry<K, V> next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      do {
+        index++;
+      } while (index < head && objects[index * 2] == null);
+
+      assertState(index < head, "Head in invalid position");
+
+      return new EntryImpl(index);
+    }
+
+    @Override
+    public void remove() {
+      checkState(index != -1);
+      if (modCount != validAt) {
+        throw new ConcurrentModificationException();
+      }
+      deleteObjectAtIndex(index);
+      validAt = modCount;
+    }
+
+    private class EntryImpl implements Entry<K, V> {
+      private final int index;
+
+      EntryImpl(int index) {
+        this.index = index;
       }
 
       @Override
-      public boolean hasNext() {
-        if (modCount != expectedModCount) {
+      public K getKey() {
+        if (modCount != validAt) {
           throw new ConcurrentModificationException();
         }
-        return nextIndex < head;
+        Object keyObject = objects[index * 2];
+        @SuppressWarnings("unchecked")
+        K key = (keyObject == Reserved.NULL) ? null : (K) keyObject;
+        return key;
       }
 
       @Override
-      public Entry<K, V> next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-
-        index = nextIndex;
-        do {
-          nextIndex++;
-        } while (nextIndex < head && objects[nextIndex * 2] == null);
-
-        Object o = objects[index * 2];
-        if (o == null) {
+      public V getValue() {
+        if (modCount != validAt) {
           throw new ConcurrentModificationException();
         }
-        return new EntryImpl(o, index);
+        @SuppressWarnings("unchecked")
+        V value = (V) objects[index * 2 + 1];
+        return value;
       }
 
       @Override
-      public void remove() {
-        checkState(index != -1);
-        if (modCount != expectedModCount) {
+      public V setValue(V value) {
+        if (modCount != validAt) {
           throw new ConcurrentModificationException();
         }
-        deleteObjectAtIndex(index);
-        index = -1;
-        expectedModCount = modCount;
+        @SuppressWarnings("unchecked")
+        V oldValue = (V) objects[index * 2 + 1];
+        objects[index * 2 + 1] = value;
+        ++modCount;
+        ++validAt;
+        return oldValue;
+      }
+
+      /**
+       * Compares the specified object with this entry for equality.
+       * Returns <tt>true</tt> if the given object is also a map entry and
+       * the two entries represent the same mapping.  More formally, two
+       * entries <tt>e1</tt> and <tt>e2</tt> represent the same mapping
+       * if<pre>
+       *     (e1.getKey()==null ?
+       *      e2.getKey()==null : e1.getKey().equals(e2.getKey()))  &amp;&amp;
+       *     (e1.getValue()==null ?
+       *      e2.getValue()==null : e1.getValue().equals(e2.getValue()))
+       * </pre>
+       * This ensures that the <tt>equals</tt> method works properly across
+       * different implementations of the <tt>Map.Entry</tt> interface.
+       *
+       * @param o object to be compared for equality with this map entry
+       * @return <tt>true</tt> if the specified object is equal to this map
+       *         entry
+       */
+      @Override
+      public boolean equals(Object o) {
+        if (!(o instanceof Entry)) {
+          return false;
+        }
+        Entry<?, ?> other = (Entry<?, ?>) o;
+        return Objects.equal(getKey(), other.getKey()) && Objects.equal(getValue(), other.getValue());
+      }
+
+      /**
+       * Returns the hash code value for this map entry.  The hash code
+       * of a map entry <tt>e</tt> is defined to be: <pre>
+       *     (e.getKey()==null   ? 0 : e.getKey().hashCode()) ^
+       *     (e.getValue()==null ? 0 : e.getValue().hashCode())
+       * </pre>
+       * This ensures that <tt>e1.equals(e2)</tt> implies that
+       * <tt>e1.hashCode()==e2.hashCode()</tt> for any two Entries
+       * <tt>e1</tt> and <tt>e2</tt>, as required by the general
+       * contract of <tt>Object.hashCode</tt>.
+       *
+       * @return the hash code value for this map entry
+       * @see Object#hashCode()
+       * @see Object#equals(Object)
+       * @see #equals(Object)
+       */
+      @Override
+      public int hashCode() {
+        Object key = objects[index * 2];
+        Object value = objects[index * 2 + 1];
+        return (key == Reserved.NULL ? 0 : key.hashCode()) ^ (value == null ? 0 : value.hashCode());
+      }
+
+      @Override
+      public String toString() {
+        return getKey() + "=" + getValue();
       }
     }
   }
