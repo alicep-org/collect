@@ -11,20 +11,19 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import org.alicep.collect.BenchmarkRunner.Benchmark;
-import org.alicep.collect.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner;
+import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.commons.math3.random.Well19937c;
-import org.junit.Ignore;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
 
-@Ignore("Manual performance tests")
 @RunWith(BenchmarkRunner.class)
 public class SetPerformanceTests<T> {
 
-  private static class Config<T> {
+  static class Config<T> {
     private final Supplier<Set<T>> setFactory;
     private final ItemFactory<T> itemFactory;
 

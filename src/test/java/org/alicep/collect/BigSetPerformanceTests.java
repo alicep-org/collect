@@ -13,8 +13,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import org.alicep.collect.BenchmarkRunner.Benchmark;
-import org.alicep.collect.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner;
+import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
@@ -22,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 @RunWith(BenchmarkRunner.class)
 public class BigSetPerformanceTests<T> {
 
-  private static class Config<T> {
+  static class Config<T> {
     private final Supplier<Set<T>> setFactory;
     private final ItemFactory<T> itemFactory;
 
@@ -53,7 +54,7 @@ public class BigSetPerformanceTests<T> {
   private final Supplier<Set<T>> setFactory;
   private final ItemFactory<T> itemFactory;
   private Set<T> bigSet;
-  private List<T> elements = null;
+  private List<T> elements;
 
   int i = 0;
 
@@ -61,10 +62,12 @@ public class BigSetPerformanceTests<T> {
     setFactory = config.setFactory;
     itemFactory = config.itemFactory;
 
-    bigSet = setFactory.get();
+    elements = new ArrayList<>(1_000_000);
     for (int i = 0; i < 1_000_000; i++) {
-      bigSet.add(itemFactory.createItem(i));
+      elements.add(itemFactory.createItem(i));
     }
+    bigSet = setFactory.get();
+    elements.forEach(bigSet::add);
   }
 
   @Benchmark("Create a 1M-element map")
