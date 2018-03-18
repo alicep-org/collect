@@ -13,8 +13,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
 
-import org.alicep.collect.BenchmarkRunner.Benchmark;
-import org.alicep.collect.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner;
+import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
@@ -23,7 +24,7 @@ import com.google.common.collect.ImmutableMap;
 @RunWith(BenchmarkRunner.class)
 public class SmallMapPerformanceTests<K, V> {
 
-  private static class Config<K, V> {
+  static class Config<K, V> {
     private final Supplier<Map<K, V>> mapFactory;
     private final ItemFactory<K> keyFactory;
     private final ItemFactory<V> valueFactory;

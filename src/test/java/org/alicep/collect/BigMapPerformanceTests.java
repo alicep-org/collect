@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.alicep.collect.BenchmarkRunner.Benchmark;
-import org.alicep.collect.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner;
+import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
@@ -21,7 +22,7 @@ import com.google.common.collect.ImmutableList;
 @RunWith(BenchmarkRunner.class)
 public class BigMapPerformanceTests<K, V> {
 
-  private static class Config<K, V> {
+  static class Config<K, V> {
     private final Supplier<Map<K, V>> mapFactory;
     private final ItemFactory<K> keyFactory;
     private final ItemFactory<V> valueFactory;
@@ -94,9 +95,7 @@ public class BigMapPerformanceTests<K, V> {
   @Benchmark("Hit in a 1M-element map")
   public void hit() {
     assertNotNull(bigMap.get(keyFactory.createItem(i)));
-    if (i++ > 1_000_000) {
-      i = 0;
-    }
+    if (++i == 1_000_000) i = 0;
   }
 
   @Benchmark("Miss in a 1M-element map")
@@ -110,8 +109,6 @@ public class BigMapPerformanceTests<K, V> {
     for (long j = 0; j < 30; ++j) {
       bigMap.get(keyFactory.createItem(i + j * 1_000_000));
     }
-    if (i++ > 1_000_000) {
-      i = 0;
-    }
+    if (++i == 1_000_000) i = 0;
   }
 }

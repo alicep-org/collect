@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 @RunWith(BenchmarkRunner.class)
 public class SmallSetPerformanceTests<T> {
 
-  private static class Config<T> {
+  static class Config<T> {
     private final Supplier<Set<T>> setFactory;
     private final ItemFactory<T> itemFactory;
 
