@@ -35,6 +35,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.Consumer;
 import java.util.stream.Collector;
 
 /**
@@ -153,6 +154,17 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    */
   public static <E> ArraySet<E> withInitialCapacity(int initialCapacity) {
     return new ArraySet<>(initialCapacity);
+  }
+
+  @Override
+  public void forEach(Consumer<? super E> action) {
+    for (int i = 0; i < head; ++i) {
+      @SuppressWarnings("unchecked")
+      E item = (E) objects[i];
+      if (item != null) {
+        action.accept(item == Reserved.NULL ? null : item);
+      }
+    }
   }
 
   /**
