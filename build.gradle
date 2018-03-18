@@ -26,6 +26,10 @@ archivesBaseName = 'collect'
 
 sourceCompatibility = 1.8
 
+test {
+  exclude '**/*PerformanceTests*'
+}
+
 dependencies {
   compile guava
 
