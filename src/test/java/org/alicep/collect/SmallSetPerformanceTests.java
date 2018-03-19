@@ -1,12 +1,13 @@
 package org.alicep.collect;
 
+import static java.util.stream.Collectors.toList;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
+import static org.alicep.collect.LongStreams.longs;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,11 +63,11 @@ public class SmallSetPerformanceTests<T> {
     setFactory = config.setFactory;
     itemFactory = config.itemFactory;
 
+    elements = longs(0, 6).mapToObj(itemFactory::createItem).collect(toList());
     littleSet = setFactory.get();
     for (int i = 0; i < 6; i++) {
-      littleSet.add(itemFactory.createItem(i));
+      littleSet.add(elements.get(i));
     }
-    elements = new ArrayList<T>(littleSet);
   }
 
   @Benchmark("Create a 6-element set")
