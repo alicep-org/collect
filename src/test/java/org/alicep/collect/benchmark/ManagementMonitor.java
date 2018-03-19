@@ -45,6 +45,10 @@ class ManagementMonitor {
       stopTime = bean.getCollectionTime();
     }
 
+    public boolean memoryPressureSeen() {
+      return bean.getCollectionCount() > startCount;
+    }
+
     @Override
     public void printIfChanged(PrintStream ps) {
       long sweeps = stopCount - startCount;
@@ -182,6 +186,7 @@ class ManagementMonitor {
   }
 
   private final List<Monitor> monitors = new ArrayList<>();
+  private final List<GCMonitor> gcMonitors = new ArrayList<>();
   private final CompilerMonitor compilerMonitor;
 
   public ManagementMonitor() {
@@ -189,6 +194,7 @@ class ManagementMonitor {
     getGarbageCollectorMXBeans()
         .stream()
         .map(GCMonitor::new)
+        .peek(gcMonitors::add)
         .forEach(monitors::add);
     monitors.add(compilerMonitor);
     monitors.add(new ClassLoaderMonitor(getClassLoadingMXBean()));
@@ -208,5 +214,9 @@ class ManagementMonitor {
 
   public void printIfChanged(PrintStream ps) {
     monitors.forEach(snapshot -> snapshot.printIfChanged(ps));
+  }
+
+  public boolean memoryPressureSeen() {
+    return gcMonitors.stream().anyMatch(GCMonitor::memoryPressureSeen);
   }
 }

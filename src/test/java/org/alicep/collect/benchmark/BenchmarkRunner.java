@@ -1,6 +1,7 @@
 package org.alicep.collect.benchmark;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -172,6 +173,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     private static int WARMUP_ITERATIONS = 6;
     private static int MAX_CRITICAL_METRIC_ITERATIONS = 10;
     private static int ITERATIONS = 10;
+    private static int ITERATIONS_UNDER_MEMORY_PRESSURE = 50;
     private static Duration MIN_MEASUREMENT_TIME = Duration.ofMillis(100);
 
     private final Description description;
@@ -211,31 +213,29 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       try {
         System.out.print(config() + ": ");
         System.out.flush();
-        List<Double> observations = new ArrayList<>();
+        List<Double> observations = new ArrayList<>(ITERATIONS);
         notifier.fireTestStarted(description);
         LongConsumer hotLoop = hotLoopFactory.get();
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
           measure(hotLoop);
         }
         ManagementMonitor monitor = new ManagementMonitor();
-        for (int i = 0, j = 0; i < ITERATIONS; ++i, ++j) {
+        int maxIterations = ITERATIONS;
+        for (int i = 0, j = 0; i < maxIterations; i++, j++) {
           observations.add(measure(hotLoop));
           if (monitor.criticalMetricChanged() && j < MAX_CRITICAL_METRIC_ITERATIONS) {
-            i = 0;
+            i = -1;
+            maxIterations = ITERATIONS;
             observations.clear();
             monitor = new ManagementMonitor();
+          } else if (monitor.memoryPressureSeen()) {
+            maxIterations = ITERATIONS_UNDER_MEMORY_PRESSURE;
           }
         }
+        checkState(observations.size() >= ITERATIONS);
         monitor.stop();
         hotLoop = null;
-        if (!observations.stream().anyMatch(o -> o.isNaN())) {
-          String best = formatNanos(Ordering.natural().min(observations));
-          String worst = formatNanos(Ordering.natural().max(observations));
-          double total = observations.stream().reduce(0.0, (a, b) -> a + b);
-          String mean = formatNanos(total / observations.size());
-          System.out.println(mean + " (" + best + "-" + worst + ")");
-        }
-        monitor.printIfChanged(System.out);
+        summarize(observations, monitor);
         notifier.fireTestFinished(description);
       } catch (Throwable t) {
         System.out.print(t.getClass().getSimpleName());
@@ -246,6 +246,15 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         System.out.println();
         notifier.fireTestFailure(new Failure(description, t));
       }
+    }
+
+    private static void summarize(List<Double> observations, ManagementMonitor monitor) {
+      String best = formatNanos(Ordering.natural().min(observations));
+      String worst = formatNanos(Ordering.natural().max(observations));
+      double total = observations.stream().reduce(0.0, (a, b) -> a + b);
+      String mean = formatNanos(total / observations.size());
+      System.out.println(mean + " (" + best + "-" + worst + ", " + observations.size() + " observations" + ")");
+      monitor.printIfChanged(System.out);
     }
 
     public Object config() {
