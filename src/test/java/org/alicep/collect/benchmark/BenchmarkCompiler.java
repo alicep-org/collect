@@ -1,15 +1,16 @@
 package org.alicep.collect.benchmark;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static java.lang.reflect.Modifier.isStatic;
 
 import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaCompiler.CompilationTask;
@@ -31,8 +32,13 @@ class BenchmarkCompiler {
    * meaning any user classes will be re-JITted. Types under the java packages may still
    * cause polymorphic dispatch timing issues.
    */
+  @SafeVarargs
   public static LongConsumer compileBenchmark(
-      Class<?> cls, Method method, Field configurations, int index) {
+      Class<?> cls,
+      Method method,
+      Field configurations,
+      int index,
+      Predicate<Class<?>>... forkingCoreClassesMatching) {
     checkArgument(cls.isAssignableFrom(method.getDeclaringClass()));
     checkArgument(isStatic(configurations.getModifiers()));
     String pkg = method.getDeclaringClass().getPackage().getName();
@@ -54,7 +60,8 @@ class BenchmarkCompiler {
         + "    }\n"
         + "  }\n"
         + "}\n";
-    ClassLoader generatedClasses = compile(cls.getClassLoader(), pkg, className, src);
+    ForkingClassLoader generatedClasses = compile(cls.getClassLoader(), pkg, className, src);
+    Arrays.asList(forkingCoreClassesMatching).forEach(generatedClasses::forkingCoreClassesMatching);
     try {
       Class<?> generatedClass = generatedClasses.loadClass(pkg + "." + className);
       return (LongConsumer) generatedClass.newInstance();
@@ -85,7 +92,7 @@ class BenchmarkCompiler {
     return construct.toString();
   }
 
-  private static ClassLoader compile(ClassLoader origin, String pkg, String className, String src) {
+  private static ForkingClassLoader compile(ClassLoader origin, String pkg, String className, String src) {
     URI uri = URI.create("temp://" + pkg.replace(".", "/") + "/" + className + ".java");
     JavaFileObject loopSource = new SourceObject(uri, Kind.SOURCE, src);
     StringWriter writer = new StringWriter();
@@ -107,7 +114,6 @@ class BenchmarkCompiler {
       }
       throw new IllegalStateException("Compilation failed");
     }
-    checkState(compiled, "Compilation failed");
     return fileManager.getForkingClassLoader(origin);
   }
 

@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -193,7 +194,11 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       this.configuration = configuration;
       description = createTestDescription(testClass.getJavaClass(), name(benchmarkName, configuration));
       hotLoopFactory = () -> BenchmarkCompiler.compileBenchmark(
-          testClass.getJavaClass(), method.getMethod(), configurationsField.getField(), index);
+          testClass.getJavaClass(),
+          method.getMethod(),
+          configurationsField.getField(),
+          index,
+          BenchmarkRunner::isCoreCollection);
     }
 
     @Override
@@ -258,6 +263,12 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         attempts *= 2;
       }
     }
+  }
+
+  private static boolean isCoreCollection(Class<?> cls) {
+    return cls.getPackage().getName().equals("java.util")
+        && !cls.isInterface()
+        && (Map.class.isAssignableFrom(cls) || Set.class.isAssignableFrom(cls));
   }
 
   private static final Map<Integer, String> SCALES = ImmutableMap.<Integer, String>builder()
