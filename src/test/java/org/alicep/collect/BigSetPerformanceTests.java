@@ -17,6 +17,7 @@ import java.util.function.Supplier;
 import org.alicep.collect.benchmark.BenchmarkRunner;
 import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
 import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner.InterferenceWarning;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
@@ -76,6 +77,7 @@ public class BigSetPerformanceTests<T> {
   }
 
   @Benchmark("Iterate through a 1M-element map")
+  @InterferenceWarning
   public void iterate() {
     bigSet.forEach(e -> assertNotNull(e));
   }
