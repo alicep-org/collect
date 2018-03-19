@@ -17,6 +17,7 @@ import java.util.function.Supplier;
 import org.alicep.collect.benchmark.BenchmarkRunner;
 import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
 import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
+import org.alicep.collect.benchmark.BenchmarkRunner.InterferenceWarning;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
@@ -77,6 +78,7 @@ public class SmallSetPerformanceTests<T> {
   }
 
   @Benchmark("Iterate through a 6-element set")
+  @InterferenceWarning
   public void iterate() {
     littleSet.forEach(e -> assertNotNull(e));
   }
