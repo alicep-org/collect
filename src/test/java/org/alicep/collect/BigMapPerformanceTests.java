@@ -1,11 +1,12 @@
 package org.alicep.collect;
 
+import static java.util.stream.Collectors.toList;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
+import static org.alicep.collect.LongStreams.longs;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,7 +58,7 @@ public class BigMapPerformanceTests<K, V> {
   private final Supplier<Map<K, V>> mapFactory;
   private final ItemFactory<K> keyFactory;
   private final ItemFactory<V> valueFactory;
-  private Map<K, V> bigMap;
+  private final Map<K, V> bigMap;
   private List<K> keys = null;
   private List<V> values = null;
 
@@ -68,19 +69,16 @@ public class BigMapPerformanceTests<K, V> {
     keyFactory = config.keyFactory;
     valueFactory = config.valueFactory;
 
+    keys = longs(0, 1_000_000).mapToObj(keyFactory).collect(toList());
+    values = longs(0, 1_000_000).mapToObj(valueFactory).collect(toList());
     bigMap = mapFactory.get();
     for (int i = 0; i < 1_000_000; ++i) {
-      bigMap.put(keyFactory.createItem(i), valueFactory.createItem(i));
+      bigMap.put(keys.get(i), values.get(i));
     }
   }
 
   @Benchmark("Create a 1M-element map")
   public void create() {
-    if (keys == null) {
-      keys = new ArrayList<>(bigMap.keySet());
-      values = new ArrayList<>(bigMap.values());
-      bigMap = null;
-    }
     Map<K, V> map = mapFactory.get();
     for (int i = 0; i < 1_000_000; ++i) {
       map.put(keys.get(i), values.get(i));

@@ -1,12 +1,13 @@
 package org.alicep.collect;
 
+import static java.util.stream.Collectors.toList;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
+import static org.alicep.collect.LongStreams.longs;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -54,7 +55,7 @@ public class BigSetPerformanceTests<T> {
   private final Supplier<Set<T>> setFactory;
   private final ItemFactory<T> itemFactory;
   private Set<T> bigSet;
-  private List<T> elements;
+  private final List<T> elements;
 
   int i = 0;
 
@@ -62,20 +63,14 @@ public class BigSetPerformanceTests<T> {
     setFactory = config.setFactory;
     itemFactory = config.itemFactory;
 
-    elements = new ArrayList<>(1_000_000);
-    for (int i = 0; i < 1_000_000; i++) {
-      elements.add(itemFactory.createItem(i));
-    }
+    elements = longs(0, 1_000_000).mapToObj(itemFactory::createItem).collect(toList());
     bigSet = setFactory.get();
     elements.forEach(bigSet::add);
   }
 
   @Benchmark("Create a 1M-element map")
   public void create() {
-    if (elements == null) {
-      elements = new ArrayList<>(bigSet);
-      bigSet = null;
-    }
+    bigSet = null;
     Set<T> set = setFactory.get();
     elements.forEach(set::add);
   }
