@@ -6,6 +6,8 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.junit.runner.Description.createTestDescription;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -87,6 +89,16 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   }
 
   @Override
+  public void run(RunNotifier notifier) {
+    // Ensure the management monitors don't set themselves off mid-test if they've never run before
+    ManagementMonitor monitor = new ManagementMonitor();
+    monitor.stop();
+    monitor.printIfChanged(new PrintStream(new ByteArrayOutputStream()));
+
+    super.run(notifier);
+  }
+
+  @Override
   protected void runChild(SingleBenchmark benchmark, RunNotifier notifier) {
     benchmark.run(notifier);
   }
@@ -157,6 +169,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   private static class Flavour extends Runner {
 
     private static int WARMUP_ITERATIONS = 6;
+    private static int MAX_CRITICAL_METRIC_ITERATIONS = 10;
     private static int ITERATIONS = 10;
     private static Duration MIN_MEASUREMENT_TIME = Duration.ofMillis(100);
 
@@ -190,18 +203,25 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
     @Override
     public void run(RunNotifier notifier) {
-      System.out.print(config() + ": ");
-      System.out.flush();
       try {
+        System.out.print(config() + ": ");
+        System.out.flush();
         List<Double> observations = new ArrayList<>();
         notifier.fireTestStarted(description);
         LongConsumer hotLoop = hotLoopFactory.get();
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
           measure(hotLoop);
         }
-        for (int i = 0; i < ITERATIONS; ++i) {
+        ManagementMonitor monitor = new ManagementMonitor();
+        for (int i = 0, j = 0; i < ITERATIONS; ++i, ++j) {
           observations.add(measure(hotLoop));
+          if (monitor.criticalMetricChanged() && j < MAX_CRITICAL_METRIC_ITERATIONS) {
+            i = 0;
+            observations.clear();
+            monitor = new ManagementMonitor();
+          }
         }
+        monitor.stop();
         hotLoop = null;
         if (!observations.stream().anyMatch(o -> o.isNaN())) {
           String best = formatNanos(Ordering.natural().min(observations));
@@ -210,6 +230,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
           String mean = formatNanos(total / observations.size());
           System.out.println(mean + " (" + best + "-" + worst + ")");
         }
+        monitor.printIfChanged(System.out);
         notifier.fireTestFinished(description);
       } catch (Throwable t) {
         System.out.print(t.getClass().getSimpleName());
@@ -247,8 +268,9 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       .put(-12, "ps")
       .build();
 
-  private static String formatNanos(double nanos) {
-    checkArgument(nanos > 0);
+  static String formatNanos(double nanos) {
+    checkArgument(nanos >= 0);
+    if (nanos == 0) return "0s";
     double timePerAttempt = nanos;
     int scale = -9; // nanos
     while (timePerAttempt < 1.0) {
