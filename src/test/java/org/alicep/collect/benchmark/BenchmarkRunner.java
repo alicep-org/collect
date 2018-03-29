@@ -3,6 +3,7 @@ package org.alicep.collect.benchmark;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static java.lang.management.ManagementFactory.getGarbageCollectorMXBeans;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.junit.runner.Description.createTestDescription;
@@ -14,11 +15,13 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.management.GarbageCollectorMXBean;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -139,6 +142,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         System.out.println(" ** This test tends to be unreliable **");
         System.out.println("    Run in isolation for trustworthy results");
       }
+      warnIfCannotCollectGarbage();
       super.run(notifier);
       System.out.println();
     }
@@ -164,6 +168,38 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         return benchmark.value();
       } else {
         return method.getName();
+      }
+    }
+  }
+
+  private static void warnIfCannotCollectGarbage() {
+    // Make sure all our allocations are done _before_ we get the collection counts.
+    GarbageCollectorMXBean[] gcBeans = getGarbageCollectorMXBeans().toArray(new GarbageCollectorMXBean[0]);
+    long[] countsBefore = new long[gcBeans.length];
+    long[] countsAfter = new long[gcBeans.length];
+
+    for (int i = 0; i < gcBeans.length; ++i) {
+      countsBefore[i] = gcBeans[i].getCollectionCount();
+    }
+
+    System.gc();
+
+    for (int i = 0; i < gcBeans.length; ++i) {
+      countsAfter[i] = gcBeans[i].getCollectionCount();
+    }
+
+    Set<String> failedCollections = new TreeSet<>();
+    for (int i = 0; i < gcBeans.length; ++i) {
+      if (countsBefore[i] >= countsAfter[i]) {
+        failedCollections.add(gcBeans[i].getName());
+      }
+    }
+
+    if (!failedCollections.isEmpty()) {
+      System.out.println(failedCollections.stream().collect(joining(", ", "[WARN] Could not collect ", " **")));
+      System.out.println("  - Results may be less reliable");
+      if (failedCollections.contains("PS MarkSweep")) {
+        System.out.println("  - Try rerunning with -XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses");
       }
     }
   }
@@ -219,6 +255,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
           measure(hotLoop);
         }
+        System.gc();
         ManagementMonitor monitor = new ManagementMonitor();
         int maxIterations = ITERATIONS;
         for (int i = 0, j = 0; i < maxIterations; i++, j++) {
@@ -227,6 +264,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
             i = -1;
             maxIterations = ITERATIONS;
             observations.clear();
+            System.gc();
             monitor = new ManagementMonitor();
           } else if (monitor.memoryPressureSeen()) {
             maxIterations = ITERATIONS_UNDER_MEMORY_PRESSURE;
