@@ -211,6 +211,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
   private static class Flavour extends Runner {
 
+    private static final double CONFIDENCE_INTERVAL_99_PERCENT = 2.58;
     private static int WARMUP_ITERATIONS = 6;
     private static int MAX_CRITICAL_METRIC_ITERATIONS = 10;
     private static int ITERATIONS = 10;
@@ -317,11 +318,11 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     }
 
     private static void summarize(List<Double> observations, ManagementMonitor monitor) {
-      String best = formatNanos(Ordering.natural().min(observations));
-      String worst = formatNanos(Ordering.natural().max(observations));
       double total = observations.stream().reduce(0.0, (a, b) -> a + b);
-      String mean = formatNanos(total / observations.size());
-      System.out.println(mean + " (" + best + "-" + worst + ", " + observations.size() + " observations" + ")");
+      double mean = total / observations.size();
+      double totalVariance = observations.stream().reduce(0.0, (a, b) -> a + (b - mean) * (b - mean));
+      double sampleError = Math.sqrt(totalVariance / (observations.size() - 1)) * CONFIDENCE_INTERVAL_99_PERCENT;
+      System.out.println(formatNanos(mean) + " (±" + formatNanos(sampleError) + ")");
       monitor.printIfChanged(System.out);
     }
 
