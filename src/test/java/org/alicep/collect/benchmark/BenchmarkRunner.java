@@ -16,6 +16,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -110,6 +112,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
   static class SingleBenchmark extends ParentRunner<Flavour> {
     private final FrameworkMethod method;
+    private final Set<String> collectorsWeCannotRun;
     private final List<Flavour> flavours;
 
     SingleBenchmark(
@@ -119,10 +122,12 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         List<?> configurations) throws InitializationError {
       super(testClass.getJavaClass());
       this.method = method;
+      this.collectorsWeCannotRun = collectorsWeCannotRun();
       flavours = IntStream.iterate(0, i -> ++i)
           .limit(configurations.size())
           .mapToObj(index -> new Flavour(
               testClass,
+              collectorsWeCannotRun.isEmpty(),
               method.getName(),
               method,
               configurationsField,
@@ -142,7 +147,13 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         System.out.println(" ** This test tends to be unreliable **");
         System.out.println("    Run in isolation for trustworthy results");
       }
-      warnIfCannotCollectGarbage();
+      if (!collectorsWeCannotRun.isEmpty()) {
+        System.out.println(collectorsWeCannotRun.stream().collect(joining(", ", "[WARN] Could not collect ", " **")));
+        System.out.println("  - Results may be less reliable");
+        if (collectorsWeCannotRun.contains("PS MarkSweep")) {
+          System.out.println("  - Try rerunning with -XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses");
+        }
+      }
       super.run(notifier);
       System.out.println();
     }
@@ -172,7 +183,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     }
   }
 
-  private static void warnIfCannotCollectGarbage() {
+  private static Set<String> collectorsWeCannotRun() {
     // Make sure all our allocations are done _before_ we get the collection counts.
     GarbageCollectorMXBean[] gcBeans = getGarbageCollectorMXBeans().toArray(new GarbageCollectorMXBean[0]);
     long[] countsBefore = new long[gcBeans.length];
@@ -195,13 +206,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       }
     }
 
-    if (!failedCollections.isEmpty()) {
-      System.out.println(failedCollections.stream().collect(joining(", ", "[WARN] Could not collect ", " **")));
-      System.out.println("  - Results may be less reliable");
-      if (failedCollections.contains("PS MarkSweep")) {
-        System.out.println("  - Try rerunning with -XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses");
-      }
-    }
+    return failedCollections;
   }
 
   private static class Flavour extends Runner {
@@ -216,6 +221,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     private final Supplier<LongConsumer> hotLoopFactory;
 
     private final Object configuration;
+    private final boolean canGc;
     private long attempts = 1;
 
     private static String name(String benchmarkName, Object config) {
@@ -224,12 +230,14 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
     Flavour(
         TestClass testClass,
+        boolean canGc,
         String benchmarkName,
         FrameworkMethod method,
         FrameworkField configurationsField,
         Object configuration,
         int index) {
       this.configuration = configuration;
+      this.canGc = canGc;
       description = createTestDescription(testClass.getJavaClass(), name(benchmarkName, configuration));
       hotLoopFactory = () -> BenchmarkCompiler.compileBenchmark(
           testClass.getJavaClass(),
@@ -256,6 +264,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
           measure(hotLoop);
         }
         System.gc();
+        flushSurvivorSpace();
         ManagementMonitor monitor = new ManagementMonitor();
         int maxIterations = ITERATIONS;
         for (int i = 0, j = 0; i < maxIterations; i++, j++) {
@@ -265,6 +274,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
             maxIterations = ITERATIONS;
             observations.clear();
             System.gc();
+            flushSurvivorSpace();
             monitor = new ManagementMonitor();
           } else if (monitor.memoryPressureSeen()) {
             maxIterations = ITERATIONS_UNDER_MEMORY_PRESSURE;
@@ -283,6 +293,26 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         }
         System.out.println();
         notifier.fireTestFailure(new Failure(description, t));
+      }
+    }
+
+    private void flushSurvivorSpace() {
+      if (!canGc) {
+        return;
+      }
+      MemoryPoolMXBean survivorSpaceBean = ManagementFactory.getMemoryPoolMXBeans()
+          .stream()
+          .filter(bean -> bean.getName().equals("PS Survivor Space"))
+          .findAny()
+          .orElse(null);
+      if (survivorSpaceBean == null) {
+        return;
+      }
+      for (int i = 0; i < 100; ++i) {
+        System.gc();
+        if (survivorSpaceBean.getUsage().getUsed() == 0) {
+          return;
+        }
       }
     }
 
