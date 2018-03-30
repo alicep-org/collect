@@ -318,8 +318,13 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     return (1 << (lookupEntryBits() + STORED_HASH_BITS)) - 1;
   }
 
-  private long hashNibble(int hash) {
-    return (hash >> log2ceil(lookupAndHash.length)) & STORED_HASH_MASK;
+  /**
+   * Hashes the bits of {@code hash} into a nibble that is unlikely to share much information with the lookup index
+   * and stride length.
+   */
+  private static long hashNibble(int hash) {
+    int invHash = Integer.reverse(hash);
+    return (hash ^ invHash ^ (hash >> 7) ^ (invHash >> 13)) & STORED_HASH_MASK;
   }
 
   private void addLookupNibble(int lookupIndex, long bits) {
@@ -347,8 +352,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     lookupIndex &= mask;
     stride &= mask;
     int indexAndHash;
+    long hashNibble = hashNibble(hashCode);
     while ((indexAndHash = getLookupAndHashAt(lookupIndex)) != NO_INDEX) {
-      if (hashNibble(hashCode) == (indexAndHash & STORED_HASH_MASK)) {
+      if (hashNibble == (indexAndHash & STORED_HASH_MASK)) {
         Object other = objects[indexAndHash >> STORED_HASH_BITS];
         if (other == null) {
           if (tombstoneIndex == -1) {
