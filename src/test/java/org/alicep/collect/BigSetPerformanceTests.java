@@ -1,16 +1,13 @@
 package org.alicep.collect;
 
-import static java.util.stream.Collectors.toList;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
-import static org.alicep.collect.LongStreams.longs;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -56,7 +53,9 @@ public class BigSetPerformanceTests<T> {
   private final Supplier<Set<T>> setFactory;
   private final ItemFactory<T> itemFactory;
   private Set<T> bigSet;
-  private final List<T> elements;
+
+  @SuppressWarnings("unchecked")
+  private final T[] elements = (T[]) new Object[1_000_000];
 
   int i = 0;
 
@@ -64,16 +63,22 @@ public class BigSetPerformanceTests<T> {
     setFactory = config.setFactory;
     itemFactory = config.itemFactory;
 
-    elements = longs(0, 1_000_000).mapToObj(itemFactory::createItem).collect(toList());
+    for (int i = 0; i < elements.length; ++i) {
+      elements[i] = itemFactory.createItem(i);
+    }
     bigSet = setFactory.get();
-    elements.forEach(bigSet::add);
+    for (T item : elements) {
+      bigSet.add(item);
+    }
   }
 
   @Benchmark("Create a 1M-element map")
   public void create() {
     bigSet = null;
     Set<T> set = setFactory.get();
-    elements.forEach(set::add);
+    for (T item : elements) {
+      set.add(item);
+    }
   }
 
   @Benchmark("Iterate through a 1M-element map")
@@ -84,12 +89,12 @@ public class BigSetPerformanceTests<T> {
 
   @Benchmark("Hit in a 1M-element map")
   public void hit() {
-    assertTrue(bigSet.contains(itemFactory.createItem(i)));
-    if (++i == 1_000_000) i = 0;
+    assertTrue(bigSet.contains(elements[i]));
+    if (++i == elements.length) i = 0;
   }
 
   @Benchmark("Miss in a 1M-element map")
   public void miss() {
-    assertFalse(bigSet.contains(itemFactory.createItem(i++ + 1_000_000)));
+    assertFalse(bigSet.contains(itemFactory.createItem(i++ + elements.length)));
   }
 }
