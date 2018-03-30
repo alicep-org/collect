@@ -1,16 +1,13 @@
 package org.alicep.collect;
 
-import static java.util.stream.Collectors.toList;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
-import static org.alicep.collect.LongStreams.longs;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -54,43 +51,50 @@ public class SmallSetPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final ItemFactory<T> itemFactory;
   private final Set<T> littleSet;
-  private final List<T> elements;
+
+  @SuppressWarnings("unchecked")
+  private final T[] items = (T[]) new Object[500];
 
   int i = 0;
 
   public SmallSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
-    itemFactory = config.itemFactory;
 
-    elements = longs(0, 6).mapToObj(itemFactory::createItem).collect(toList());
+    for (int i = 0; i < 500; ++i) {
+      items[i] = config.itemFactory.createItem(i);
+    }
     littleSet = setFactory.get();
     for (int i = 0; i < 6; i++) {
-      littleSet.add(elements.get(i));
+      littleSet.add(items[i]);
     }
   }
 
   @Benchmark("Create a 6-element set")
   public void create() {
     Set<T> set = setFactory.get();
-    elements.forEach(set::add);
+    for (int i = 0; i < 6; ++i) {
+      set.add(items[i]);
+    }
   }
 
   @Benchmark("Iterate through a 6-element set")
-  @InterferenceWarning
+  @InterferenceWarning  // Hitting java.lang.Iterable.forEach, which cannot be cloned
   public void iterate() {
     littleSet.forEach(e -> assertNotNull(e));
   }
 
   @Benchmark("Hit in a 6-element set")
   public void hit() {
-    assertTrue(littleSet.contains(itemFactory.createItem(i)));
+    assertTrue(littleSet.contains(items[i]));
     if (++i == 6) i = 0;
   }
 
   @Benchmark("Miss in a 6-element set")
   public void miss() {
-    assertFalse(littleSet.contains(itemFactory.createItem(i++ + 6)));
+    assertFalse(littleSet.contains(items[i + 6]));
+    if (++i + 6 == items.length) {
+      i = 0;
+    }
   }
 }
