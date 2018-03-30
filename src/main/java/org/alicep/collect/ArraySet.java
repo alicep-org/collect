@@ -293,9 +293,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   }
 
   private long[] newLookupArray() {
-    // Aim for a power of two with 70% occupancy maximum
+    // Aim for a power of two with 50% occupancy maximum
     int numCells = 1 << log2ceil(objects.length);
-    while (objects.length + (objects.length >> 1) - (objects.length >> 4) > numCells) {
+    while ((objects.length << 1) > numCells) {
       numCells = numCells * 2;
     }
     int cellsPerLong = lookupEntriesPerLong();
