@@ -68,6 +68,16 @@ public class SmallSetPerformanceTests<T> {
     for (int i = 0; i < 6; i++) {
       littleSet.add(items[i]);
     }
+    ArraySet.hits = 0;
+    ArraySet.unnecessaryEqualityChecks = 0;
+    ArraySet.probes = 0;
+    ArraySet.skippedEqualityChecks = 0;
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      System.out.println("hits: " + ArraySet.hits);
+      System.out.println("unnecessary equality checks: " + ArraySet.unnecessaryEqualityChecks);
+      System.out.println("spillover bucket lookups: " + ArraySet.probes);
+      System.out.println("skipped equality checks: " + ArraySet.skippedEqualityChecks);
+    }));
   }
 
   @Benchmark("Create a 6-element set")

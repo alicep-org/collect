@@ -121,6 +121,11 @@ import java.util.stream.Collector;
  */
 public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
+  public static long hits = 0;
+  public static long unnecessaryEqualityChecks = 0;
+  public static long probes = 0;
+  public static long skippedEqualityChecks = 0;
+
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
   private static final int DEFAULT_CAPACITY = 10;
@@ -352,8 +357,12 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     lookupIndex &= mask;
     stride &= mask;
     int indexAndHash;
+    int looked = 0;
     long hashNibble = hashNibble(hashCode);
     while ((indexAndHash = getLookupAndHashAt(lookupIndex)) != NO_INDEX) {
+      if (looked++ > 0) {
+        probes++;
+      }
       if (hashNibble == (indexAndHash & STORED_HASH_MASK)) {
         Object other = objects[indexAndHash >> STORED_HASH_BITS];
         if (other == null) {
@@ -361,8 +370,13 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
             tombstoneIndex = lookupIndex;
           }
         } else if (other.equals(obj)) {
+          hits++;
           return indexAndHash >> STORED_HASH_BITS;
+        } else {
+          unnecessaryEqualityChecks++;
         }
+      } else {
+        skippedEqualityChecks++;
       }
       lookupIndex += stride;
       lookupIndex &= mask;
