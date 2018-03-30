@@ -22,19 +22,24 @@ import com.google.common.collect.ImmutableMap;
 class ManagementMonitor {
 
   private interface Monitor {
+    void start();
     void stop();
     void printIfChanged(PrintStream ps);
   }
 
   private static class GCMonitor implements Monitor {
     private final GarbageCollectorMXBean bean;
-    private final long startCount;
-    private final long startTime;
+    private long startCount;
+    private long startTime;
     private long stopCount;
     private long stopTime;
 
     public GCMonitor(GarbageCollectorMXBean bean) {
       this.bean = bean;
+    }
+
+    @Override
+    public void start() {
       startCount = bean.getCollectionCount();
       startTime = bean.getCollectionTime();
     }
@@ -61,11 +66,15 @@ class ManagementMonitor {
 
   private static class CompilerMonitor implements Monitor {
     private final CompilationMXBean bean;
-    private final long startTime;
+    private long startTime;
     private long stopTime;
 
     public CompilerMonitor(CompilationMXBean bean) {
       this.bean = bean;
+    }
+
+    @Override
+    public void start() {
       startTime = bean.getTotalCompilationTime();
     }
 
@@ -90,13 +99,17 @@ class ManagementMonitor {
   private static class ClassLoaderMonitor implements Monitor {
 
     private final ClassLoadingMXBean bean;
-    private final long startLoaded;
-    private final long startUnloaded;
+    private long startLoaded;
+    private long startUnloaded;
     private long stopLoaded;
     private long stopUnloaded;
 
     public ClassLoaderMonitor(ClassLoadingMXBean bean) {
       this.bean = bean;
+    }
+
+    @Override
+    public void start() {
       startLoaded = bean.getTotalLoadedClassCount();
       startUnloaded = bean.getUnloadedClassCount();
     }
@@ -121,11 +134,15 @@ class ManagementMonitor {
   private static class MemoryPoolMonitor implements Monitor {
 
     private final MemoryPoolMXBean bean;
-    private final long startUsage;
+    private long startUsage;
     private long stopUsage;
 
     public MemoryPoolMonitor(MemoryPoolMXBean bean) {
       this.bean = bean;
+    }
+
+    @Override
+    public void start() {
       startUsage = used(bean.getUsage());
     }
 
@@ -136,10 +153,12 @@ class ManagementMonitor {
 
     @Override
     public void printIfChanged(PrintStream ps) {
-      if (stopUsage < startUsage) {
-        ps.println("  * " + bean.getName() + ": " + formatBytes(startUsage) + " —> " + formatBytes(stopUsage));
-      } else if (stopUsage > startUsage) {
-        ps.println("  * " + bean.getName() + " increased " + formatBytes(stopUsage - startUsage));
+      if (!bean.getName().startsWith("PS ")) {
+        if (stopUsage < startUsage) {
+          ps.println("  * " + bean.getName() + ": " + formatBytes(startUsage) + " —> " + formatBytes(stopUsage));
+        } else if (stopUsage > startUsage) {
+          ps.println("  * " + bean.getName() + " increased " + formatBytes(stopUsage - startUsage));
+        }
       }
     }
 
@@ -151,6 +170,35 @@ class ManagementMonitor {
     }
   }
 
+  private static class CodeCacheMonitor implements Monitor {
+
+    private final MemoryPoolMXBean codeCacheBean;
+    private long startSize;
+
+    public CodeCacheMonitor(List<MemoryPoolMXBean> poolBeans) {
+      this.codeCacheBean = poolBeans.stream()
+          .filter(poolBean -> poolBean.getName().equals("Code Cache"))
+          .findAny()
+          .orElseThrow(() -> new AssertionError("Code Cache memory pool not found"));
+    }
+
+    @Override
+    public void start() {
+      startSize = codeCacheBean.getUsage().getUsed();
+    }
+
+    @Override
+    public void stop() { }
+
+    @Override
+    public void printIfChanged(PrintStream ps) { }
+
+    public boolean codeCacheIncreased() {
+      return codeCacheBean.getUsage().getUsed() > startSize;
+    }
+
+  }
+
   private static final Map<Integer, String> SCALES = ImmutableMap.<Integer, String>builder()
       .put(0, "")
       .put(3, "K")
@@ -159,9 +207,9 @@ class ManagementMonitor {
       .put(12, "T")
       .build();
 
-  private static String formatBytes(long bytes) {
+  static String formatBytes(long bytes) {
     checkArgument(bytes >= 0);
-    if (bytes == 0) return "0B";
+    if (bytes < 995) return bytes + "B";
     double scaled = bytes;
     int scale = 0;
     while (scaled >= 995) {
@@ -188,28 +236,35 @@ class ManagementMonitor {
   private final List<Monitor> monitors = new ArrayList<>();
   private final List<GCMonitor> gcMonitors = new ArrayList<>();
   private final CompilerMonitor compilerMonitor;
+  private final CodeCacheMonitor codeCacheMonitor;
 
   public ManagementMonitor() {
     compilerMonitor = new CompilerMonitor(getCompilationMXBean());
+    monitors.add(compilerMonitor);
     getGarbageCollectorMXBeans()
         .stream()
         .map(GCMonitor::new)
         .peek(gcMonitors::add)
         .forEach(monitors::add);
-    monitors.add(compilerMonitor);
     monitors.add(new ClassLoaderMonitor(getClassLoadingMXBean()));
     ManagementFactory.getMemoryPoolMXBeans()
         .stream()
         .map(MemoryPoolMonitor::new)
         .forEach(monitors::add);
+    codeCacheMonitor = new CodeCacheMonitor(ManagementFactory.getMemoryPoolMXBeans());
+    monitors.add(codeCacheMonitor);
+  }
+
+  public void start() {
+    monitors.forEach(Monitor::start);
   }
 
   public void stop() {
     monitors.forEach(Monitor::stop);
   }
 
-  public boolean criticalMetricChanged() {
-    return compilerMonitor.changed();
+  public boolean jitMetricChanged() {
+    return compilerMonitor.changed() || codeCacheMonitor.codeCacheIncreased();
   }
 
   public void printIfChanged(PrintStream ps) {
