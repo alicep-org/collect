@@ -1,0 +1,8 @@
+Miss in a 6-element set, ArraySet<String>
+-----------------------------------------
+
+Original 50% occupancy: 29.0 ns (±4.09 ns), 0B
+70% occupancy: 40.9 ns (±5.76 ns), 0B
+70% occupancy, 4-bit stored hash: 38.8 ns (±6.00 ns), 0B
+50% occupancy, 4-bit stored hash: 27.8 ns (±3.53 ns), 0B
+
