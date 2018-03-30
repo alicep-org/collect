@@ -54,14 +54,14 @@ public class SmallSetPerformanceTests<T> {
   private final Set<T> littleSet;
 
   @SuppressWarnings("unchecked")
-  private final T[] items = (T[]) new Object[500];
+  private final T[] items = (T[]) new Object[5000];
 
   int i = 0;
 
   public SmallSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    for (int i = 0; i < 500; ++i) {
+    for (int i = 0; i < items.length; ++i) {
       items[i] = config.itemFactory.createItem(i);
     }
     littleSet = setFactory.get();
