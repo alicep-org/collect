@@ -1,7 +1,6 @@
 package org.alicep.collect.benchmark;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -16,6 +15,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -175,18 +175,18 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   private static class Flavour extends Runner {
 
     private static final double CONFIDENCE_INTERVAL_99_PERCENT = 2.58;
-    private static int WARMUP_ITERATIONS = 6;
-    private static int MAX_CRITICAL_METRIC_ITERATIONS = 10;
-    private static int ITERATIONS = 10;
-    private static int ITERATIONS_UNDER_MEMORY_PRESSURE = 50;
-    private static Duration MIN_MEASUREMENT_TIME = Duration.ofMillis(100);
+    private static Duration MIN_HOT_LOOP_TIME = Duration.ofMillis(10);
+    private static int MIN_WARMUP_ITERATIONS = 5;
+    private static Duration MIN_WARMUP_TIME = Duration.ofSeconds(1);
+    private static Duration MAX_WARMUP_TIME = Duration.ofSeconds(10);
+    private static int MIN_MEASUREMENT_ITERATIONS = 5;
+    private static Duration MIN_MEASUREMENT_TIME = Duration.ofSeconds(1);
 
     private final Description description;
     private final Supplier<LongConsumer> hotLoopFactory;
 
     private final Object configuration;
     private final MemoryAllocationMonitor memoryAllocationMonitor;
-    private long attempts = 1;
 
     private static String name(String benchmarkName, Object config) {
       return benchmarkName + " [" + config + "]";
@@ -216,36 +216,110 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       return description;
     }
 
+    /**
+     * Run in a single method to ensure the JIT targets the generated hot loop code only
+     */
     @Override
     public void run(RunNotifier notifier) {
+      notifier.fireTestStarted(description);
+
       try {
         System.out.print(config() + ": ");
         System.out.flush();
-        ArrayList<Double> observations = new ArrayList<>(ITERATIONS);
-        notifier.fireTestStarted(description);
-        LongConsumer hotLoop = hotLoopFactory.get();
-        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
-          measure(hotLoop);
-        }
-        memoryAllocationMonitor.reset();
+
+        // Start in warmup phase, then move to timing once things have stabilised enough to trust the data.
+        boolean timing = false;
+
+        // Number of times to run the hot loop for
+        long hotLoopIterations = 1;
+        // Elapsed time (total time / iterations) for each timed iteration
+        double[] elapsedTime = new double[(int) (MIN_MEASUREMENT_TIME.toNanos() / MIN_HOT_LOOP_TIME.toNanos()) + 1];
+
+        // The time we started warming up
+        long warmupStartTime = System.nanoTime();
+
+        // The time we last saw JIT activity
+        long noJitStartTime = Long.MAX_VALUE;
+
+        // The time we started timing
+        long timingStartTime = Long.MAX_VALUE;
+
+        // The time the last hot loop finished
+        long endTime;
+
+        // Memory usage across all timed iterations
+        long usageBeforeRun = 0;
+        long usageAfterRun;
+
+        // Monitor the JVM for suspicious activity
         ManagementMonitor monitor = new ManagementMonitor();
-        int maxIterations = ITERATIONS;
-        for (int i = 0, j = 0; i < maxIterations; i++, j++) {
-          observations.add(measure(hotLoop));
-          if (monitor.criticalMetricChanged() && j < MAX_CRITICAL_METRIC_ITERATIONS) {
-            i = -1;
-            maxIterations = ITERATIONS;
-            observations.clear();
-            memoryAllocationMonitor.reset();
-          } else if (monitor.memoryPressureSeen()) {
-            maxIterations = ITERATIONS_UNDER_MEMORY_PRESSURE;
-            observations.ensureCapacity(ITERATIONS_UNDER_MEMORY_PRESSURE);
+
+        // The hot loop we are timing
+        LongConsumer hotLoop = hotLoopFactory.get();
+
+        // How many iterations since the last restart
+        int iterations = 0;
+
+        do {
+          if (iterations == 0) {
+            if (timing) {
+              memoryAllocationMonitor.prepareForBenchmark();
+              usageBeforeRun = memoryAllocationMonitor.memoryUsed();
+            }
+            monitor.start();
           }
-        }
-        checkState(observations.size() >= ITERATIONS);
+
+          long startTime = System.nanoTime();
+          if (iterations == 0) {
+            if (timing) {
+              timingStartTime = startTime;
+            } else {
+              noJitStartTime = startTime;
+            }
+          }
+          hotLoop.accept(hotLoopIterations);
+          endTime = System.nanoTime();
+          long elapsed = endTime - startTime;
+
+          if (elapsed < MIN_HOT_LOOP_TIME.toNanos()) {
+            // Restart if the hot loop did not take enough time running
+            hotLoopIterations *= 2;
+            iterations = -1;
+          } else if (timing) {
+            // Record elapsed time if we're in the timing loop
+            elapsedTime[iterations] = (double) elapsed / hotLoopIterations;
+
+            // Break out of the loop if we've run enough iterations over enough time
+            boolean runMinIterations = iterations >= MIN_MEASUREMENT_ITERATIONS;
+            boolean runMinTime = (endTime - timingStartTime) > MIN_MEASUREMENT_TIME.toNanos();
+            if (runMinIterations && runMinTime) {
+              break;
+            }
+          } else {
+            boolean runMaxTime = (endTime - warmupStartTime) > MAX_WARMUP_TIME.toNanos();
+
+            // Restart if we saw the JIT trigger, and we're within the maximum warmup time
+            if (!runMaxTime && monitor.jitMetricChanged()) {
+              iterations = -1;
+            }
+
+            // Start timing if we've run enough iterations over enough time since the last JIT.
+            boolean runMinIterations = iterations >= MIN_WARMUP_ITERATIONS;
+            boolean runMinTime = (endTime - noJitStartTime) > MIN_WARMUP_TIME.toNanos();
+            if (runMinIterations && runMinTime) {
+              timing = true;
+              iterations = -1;
+            }
+          }
+
+          iterations++;
+        } while (true);
+
         monitor.stop();
+        usageAfterRun = memoryAllocationMonitor.memoryUsed();
+        double usagePerLoop = (double) (usageAfterRun - usageBeforeRun) / iterations / hotLoopIterations;
         hotLoop = null;
-        summarize(observations, monitor);
+        summarize(elapsedTime, iterations, usagePerLoop, monitor);
         notifier.fireTestFinished(description);
       } catch (Throwable t) {
         System.out.print(t.getClass().getSimpleName());
@@ -258,29 +332,24 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       }
     }
 
-    private static void summarize(List<Double> observations, ManagementMonitor monitor) {
-      double total = observations.stream().reduce(0.0, (a, b) -> a + b);
-      double mean = total / observations.size();
-      double totalVariance = observations.stream().reduce(0.0, (a, b) -> a + (b - mean) * (b - mean));
-      double sampleError = Math.sqrt(totalVariance / (observations.size() - 1)) * CONFIDENCE_INTERVAL_99_PERCENT;
-      System.out.println(formatNanos(mean) + " (±" + formatNanos(sampleError) + ")");
+    private static void summarize(double[] elapsedTime, int iterations, double memoryUsage, ManagementMonitor monitor) {
+      String timeSummary = summarizeTime(elapsedTime, iterations);
+      String memorySummary = ManagementMonitor.formatBytes((long) memoryUsage);
+      System.out.println(timeSummary + " " + memorySummary);
       monitor.printIfChanged(System.out);
+    }
+
+    private static String summarizeTime(double[] elapsedTime, int iterations) {
+      double total = Arrays.stream(elapsedTime).limit(iterations).sum();
+      double mean = total / iterations;
+      double totalVariance = Arrays.stream(elapsedTime).limit(iterations).map(a -> a*a - mean*mean).sum();
+      double sampleError = Math.sqrt(totalVariance / (iterations - 1)) * CONFIDENCE_INTERVAL_99_PERCENT;
+      String timeSummary = formatNanos(mean) + " (±" + formatNanos(sampleError) + ")";
+      return timeSummary;
     }
 
     public Object config() {
       return configuration;
-    }
-
-    private double measure(LongConsumer hotLoop) {
-      while (true) {
-        long startTime = System.nanoTime();
-        hotLoop.accept(attempts);
-        long elapsed = System.nanoTime() - startTime;
-        if (elapsed > MIN_MEASUREMENT_TIME.toNanos()) {
-          return (double) elapsed / attempts;
-        }
-        attempts *= 2;
-      }
     }
   }
 

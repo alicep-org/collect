@@ -16,30 +16,65 @@
 package org.alicep.collect.benchmark;
 
 import static java.lang.management.ManagementFactory.getGarbageCollectorMXBeans;
+import static java.lang.management.ManagementFactory.getMemoryPoolMXBeans;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
 import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryUsage;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.LongConsumer;
 
 import javax.annotation.Nullable;
+import javax.management.NotificationEmitter;
+import javax.management.openmbean.CompositeData;
+
+import com.google.common.collect.ImmutableSet;
+import com.sun.management.GarbageCollectionNotificationInfo;
+import com.sun.management.GcInfo;
 
 public abstract class MemoryAllocationMonitor {
 
+  private static final MemoryAllocationMonitor instance = create();
+
   public static MemoryAllocationMonitor get() {
+    return instance;
+  }
+
+  public abstract void warnIfMonitoringDisabled();
+
+  public abstract void prepareForBenchmark();
+
+  public abstract long memoryUsed();
+
+  private static MemoryAllocationMonitor create() {
+    List<MemoryPoolMXBean> pools = parallelSweepPools();
+    if (pools.isEmpty()) {
+      return new DisabledMemoryAllocationMonitor(ImmutableSet.of());
+    }
     Set<String> missingCollectors = collectorsWeCannotRun();
     if (missingCollectors.isEmpty()) {
-      return new ActiveMemoryAllocationMonitor();
+      return new ParallelSweepMemoryAllocationMonitor();
     } else {
       return new DisabledMemoryAllocationMonitor(missingCollectors);
     }
   }
 
-  public abstract void warnIfMonitoringDisabled();
-
-  public abstract void reset();
+  private static List<MemoryPoolMXBean> parallelSweepPools() {
+    return getMemoryPoolMXBeans()
+        .stream()
+        .filter(pool -> pool.getName().startsWith("PS "))
+        .collect(toList());
+  }
 
   private static Set<String> collectorsWeCannotRun() {
     // Make sure all our allocations are done _before_ we get the collection counts.
@@ -67,28 +102,102 @@ public abstract class MemoryAllocationMonitor {
     return failedCollections;
   }
 
-  private static class ActiveMemoryAllocationMonitor extends MemoryAllocationMonitor {
+  private static Optional<MemoryPoolMXBean> getMemoryPoolBean(String name) {
+    return getMemoryPoolMXBeans()
+        .stream()
+        .filter(bean -> bean.getName().equals(name))
+        .findAny();
+  }
 
-    @Nullable private final MemoryPoolMXBean survivorSpaceBean;
+  private static class SweepCount {
 
-    public ActiveMemoryAllocationMonitor() {
-      survivorSpaceBean = ManagementFactory.getMemoryPoolMXBeans()
+    private final Lock lock = new ReentrantLock();
+    private final Condition sweeped = lock.newCondition();
+    private volatile long sweeps = 0;
+
+    public void recordSweep() {
+      lock.lock();
+      sweeps++;
+      sweeped.signalAll();
+      lock.unlock();
+    }
+
+    public long currentSweeps() {
+      return sweeps;
+    }
+
+    public void awaitSweeps(long targetSweeps) {
+      lock.lock();
+      while (sweeps < targetSweeps) {
+        sweeped.awaitUninterruptibly();
+      }
+      lock.unlock();
+    }
+  }
+
+  private static class ParallelSweepMemoryAllocationMonitor extends MemoryAllocationMonitor {
+
+    @SuppressWarnings("restriction")
+    private static void registerPSCollectionListener(LongConsumer listener) {
+      getGarbageCollectorMXBeans()
           .stream()
-          .filter(bean -> bean.getName().equals("PS Survivor Space"))
-          .findAny()
-          .orElse(null);
+          .map(bean -> (NotificationEmitter) bean)
+          .forEach(collector -> collector.addNotificationListener((notification, handback) -> {
+            if (notification.getType().equals(GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION)) {
+              CompositeData data = (CompositeData) notification.getUserData();
+              GcInfo info = GarbageCollectionNotificationInfo.from(data).getGcInfo();
+              long usageBefore = psUsage(info.getMemoryUsageBeforeGc());
+              long usageAfter = psUsage(info.getMemoryUsageAfterGc());
+              listener.accept(usageBefore - usageAfter);
+            }
+          }, null, null));
+    }
+
+    private static long psUsage(Map<String, MemoryUsage> usage) {
+      long total = 0;
+      for (Entry<String, MemoryUsage> entry : usage.entrySet()) {
+        if (entry.getKey().startsWith("PS ")) {
+          total += entry.getValue().getUsed();
+        }
+      }
+      return total;
+    }
+
+
+    @Nullable private final MemoryPoolMXBean survivorSpace;
+    private final SweepCount sweeps = new SweepCount();
+    private volatile long reclaimed;
+
+    public ParallelSweepMemoryAllocationMonitor() {
+      survivorSpace = getMemoryPoolBean("PS Survivor Space").orElse(null);
+      registerPSCollectionListener(reclaimedThisCollection -> {
+        reclaimed += reclaimedThisCollection;
+        sweeps.recordSweep();
+      });
     }
 
     @Override
     public void warnIfMonitoringDisabled() { }
 
     @Override
-    public void reset() {
+    public void prepareForBenchmark() {
       int i = 0;
       do {
-        System.gc();
+        sweepAndAwait();
         ++i;
-      } while (survivorSpaceBean != null && survivorSpaceBean.getUsage().getUsed() > 0 && i < 100);
+      } while (survivorSpace != null && survivorSpace.getUsage().getUsed() > 0 && i < 100);
+    }
+
+    @Override
+    public long memoryUsed() {
+      sweepAndAwait();
+      return reclaimed;
+    }
+
+    private void sweepAndAwait() {
+      long sweepsBeforeGc = sweeps.currentSweeps();
+      System.gc();
+      sweeps.awaitSweeps(sweepsBeforeGc + 2);
     }
   }
 
@@ -102,17 +211,26 @@ public abstract class MemoryAllocationMonitor {
 
     @Override
     public void warnIfMonitoringDisabled() {
-      System.out.println(missingCollectors.stream().collect(joining(", ", "[WARN] Could not collect ", " **")));
-      System.out.println("  - Results may be less reliable");
+      if (missingCollectors.isEmpty()) {
+        System.out.println("[WARN] Not using parallel sweep garbage collection");
+      } else {
+        System.out.println(missingCollectors.stream().collect(joining(", ", "[WARN] Could not collect ", "")));
+      }
+      System.out.println("  - Memory allocation information will not be available");
       if (missingCollectors.contains("PS MarkSweep")) {
         System.out.println("  - Try rerunning with -XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses");
       }
     }
 
     @Override
-    public void reset() {
+    public void prepareForBenchmark() {
       // Do our best
       System.gc();
+    }
+
+    @Override
+    public long memoryUsed() {
+      return -1;
     }
   }
 }
