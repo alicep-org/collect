@@ -12,7 +12,6 @@ import java.lang.management.CompilationMXBean;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
-import java.lang.management.MemoryUsage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -131,45 +130,6 @@ class ManagementMonitor {
     }
   }
 
-  private static class MemoryPoolMonitor implements Monitor {
-
-    private final MemoryPoolMXBean bean;
-    private long startUsage;
-    private long stopUsage;
-
-    public MemoryPoolMonitor(MemoryPoolMXBean bean) {
-      this.bean = bean;
-    }
-
-    @Override
-    public void start() {
-      startUsage = used(bean.getUsage());
-    }
-
-    @Override
-    public void stop() {
-      stopUsage = used(bean.getUsage());
-    }
-
-    @Override
-    public void printIfChanged(PrintStream ps) {
-      if (!bean.getName().startsWith("PS ")) {
-        if (stopUsage < startUsage) {
-          ps.println("  * " + bean.getName() + ": " + formatBytes(startUsage) + " —> " + formatBytes(stopUsage));
-        } else if (stopUsage > startUsage) {
-          ps.println("  * " + bean.getName() + " increased " + formatBytes(stopUsage - startUsage));
-        }
-      }
-    }
-
-    private static long used(MemoryUsage memoryUsage) {
-      if (memoryUsage == null) {
-        return -1;
-      }
-      return memoryUsage.getUsed();
-    }
-  }
-
   private static class CodeCacheMonitor implements Monitor {
 
     private final MemoryPoolMXBean codeCacheBean;
@@ -240,17 +200,12 @@ class ManagementMonitor {
 
   public ManagementMonitor() {
     compilerMonitor = new CompilerMonitor(getCompilationMXBean());
-    monitors.add(compilerMonitor);
     getGarbageCollectorMXBeans()
         .stream()
         .map(GCMonitor::new)
         .peek(gcMonitors::add)
         .forEach(monitors::add);
     monitors.add(new ClassLoaderMonitor(getClassLoadingMXBean()));
-    ManagementFactory.getMemoryPoolMXBeans()
-        .stream()
-        .map(MemoryPoolMonitor::new)
-        .forEach(monitors::add);
     codeCacheMonitor = new CodeCacheMonitor(ManagementFactory.getMemoryPoolMXBeans());
     monitors.add(codeCacheMonitor);
   }

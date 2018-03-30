@@ -9,7 +9,7 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
 
 import javax.tools.DiagnosticListener;
@@ -33,7 +33,7 @@ class BenchmarkCompiler {
    * cause polymorphic dispatch timing issues.
    */
   @SafeVarargs
-  public static LongConsumer compileBenchmark(
+  public static LongUnaryOperator compileBenchmark(
       Class<?> cls,
       Method method,
       Field configurations,
@@ -50,21 +50,25 @@ class BenchmarkCompiler {
     String configurationName = configurations.getDeclaringClass().getName()
                 + "." + configurations.getName();
     String src = "package " + pkg + ";\n"
-        + "public class " + className + " implements " + LongConsumer.class.getName() + " {\n"
+        + "public class " + className + " implements " + LongUnaryOperator.class.getName() + " {\n"
         + "  private final " + declaration(cls) + " test =\n"
         + "      " + construct(cls) + "(" + configurationName + ".get(" + index + "));\n"
         + "  @Override\n"
-        + "  public void accept(long iterations) {\n"
+        + "  public long applyAsLong(long iterations) {\n"
+        + "    long startTime = " + System.class.getName() + ".nanoTime();\n"
         + "    for (long i = 0; i < iterations; i++) {\n"
         + "      test." + method.getName() + "();\n"
         + "    }\n"
+        + "    long endTime = " + System.class.getName() + ".nanoTime();\n"
+        + "    return endTime - startTime;\n"
         + "  }\n"
         + "}\n";
     ForkingClassLoader generatedClasses = compile(cls.getClassLoader(), pkg, className, src);
     Arrays.asList(forkingCoreClassesMatching).forEach(generatedClasses::forkingCoreClassesMatching);
     try {
       Class<?> generatedClass = generatedClasses.loadClass(pkg + "." + className);
-      return (LongConsumer) generatedClass.newInstance();
+      LongUnaryOperator benchmarkLoop = (LongUnaryOperator) generatedClass.newInstance();
+      return jitObfuscate(benchmarkLoop);
     } catch (ReflectiveOperationException e) {
       throw new RuntimeException(e);
     }
@@ -115,6 +119,74 @@ class BenchmarkCompiler {
       throw new IllegalStateException("Compilation failed");
     }
     return fileManager.getForkingClassLoader(origin);
+  }
+
+  private static LongUnaryOperator jitObfuscate(LongUnaryOperator target) {
+    return new RoundRobinLongUnaryOperator(
+        new DelegatingLongUnaryOperator1(target),
+        new DelegatingLongUnaryOperator2(target),
+        new DelegatingLongUnaryOperator3(target));
+  }
+
+  private static class RoundRobinLongUnaryOperator implements LongUnaryOperator {
+
+    private final LongUnaryOperator[] operators;
+    private int index = 0;
+
+    RoundRobinLongUnaryOperator(LongUnaryOperator... operators) {
+      this.operators = operators;
+    }
+
+    @Override
+    public long applyAsLong(long operand) {
+      index++;
+      if (index == operators.length) {
+        index = 0;
+      }
+      return operators[index].applyAsLong(operand);
+    }
+  }
+
+  private static class DelegatingLongUnaryOperator1 implements LongUnaryOperator {
+
+    private final LongUnaryOperator delegate;
+
+    DelegatingLongUnaryOperator1(LongUnaryOperator delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long applyAsLong(long operand) {
+      return delegate.applyAsLong(operand);
+    }
+  }
+
+  private static class DelegatingLongUnaryOperator2 implements LongUnaryOperator {
+
+    private final LongUnaryOperator delegate;
+
+    DelegatingLongUnaryOperator2(LongUnaryOperator delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long applyAsLong(long operand) {
+      return delegate.applyAsLong(operand);
+    }
+  }
+
+  private static class DelegatingLongUnaryOperator3 implements LongUnaryOperator {
+
+    private final LongUnaryOperator delegate;
+
+    DelegatingLongUnaryOperator3(LongUnaryOperator delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long applyAsLong(long operand) {
+      return delegate.applyAsLong(operand);
+    }
   }
 
   private static class SourceObject extends SimpleJavaFileObject {
