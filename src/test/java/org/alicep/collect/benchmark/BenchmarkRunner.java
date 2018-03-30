@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import static org.alicep.collect.benchmark.ManagementMonitor.formatBytes;
 import static org.junit.runner.Description.createTestDescription;
 
 import java.io.ByteArrayOutputStream;
@@ -19,7 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -175,7 +176,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   private static class Flavour extends Runner {
 
     private static final double CONFIDENCE_INTERVAL_99_PERCENT = 2.58;
-    private static Duration MIN_HOT_LOOP_TIME = Duration.ofMillis(10);
+    private static Duration MIN_HOT_LOOP_TIME = Duration.ofMillis(50);
     private static int MIN_WARMUP_ITERATIONS = 5;
     private static Duration MIN_WARMUP_TIME = Duration.ofSeconds(1);
     private static Duration MAX_WARMUP_TIME = Duration.ofSeconds(10);
@@ -183,7 +184,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     private static Duration MIN_MEASUREMENT_TIME = Duration.ofSeconds(1);
 
     private final Description description;
-    private final Supplier<LongConsumer> hotLoopFactory;
+    private final Supplier<LongUnaryOperator> hotLoopFactory;
 
     private final Object configuration;
     private final MemoryAllocationMonitor memoryAllocationMonitor;
@@ -255,35 +256,31 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
         ManagementMonitor monitor = new ManagementMonitor();
 
         // The hot loop we are timing
-        LongConsumer hotLoop = hotLoopFactory.get();
+        LongUnaryOperator hotLoop = hotLoopFactory.get();
 
         // How many iterations since the last restart
         int iterations = 0;
 
         do {
           if (iterations == 0) {
-            if (timing) {
-              memoryAllocationMonitor.prepareForBenchmark();
-              usageBeforeRun = memoryAllocationMonitor.memoryUsed();
-            }
+            memoryAllocationMonitor.prepareForBenchmark();
+            usageBeforeRun = memoryAllocationMonitor.memoryUsed();
             monitor.start();
           }
 
-          long startTime = System.nanoTime();
           if (iterations == 0) {
             if (timing) {
-              timingStartTime = startTime;
+              timingStartTime = System.nanoTime();
             } else {
-              noJitStartTime = startTime;
+              noJitStartTime = System.nanoTime();
             }
           }
-          hotLoop.accept(hotLoopIterations);
+          long elapsed = hotLoop.applyAsLong(hotLoopIterations);
           endTime = System.nanoTime();
-          long elapsed = endTime - startTime;
 
           if (elapsed < MIN_HOT_LOOP_TIME.toNanos()) {
             // Restart if the hot loop did not take enough time running
-            hotLoopIterations *= 2;
+            hotLoopIterations = hotLoopIterations + (hotLoopIterations >> 1) + 1;
             iterations = -1;
           } else if (timing) {
             // Record elapsed time if we're in the timing loop
@@ -293,6 +290,9 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
             boolean runMinIterations = iterations >= MIN_MEASUREMENT_ITERATIONS;
             boolean runMinTime = (endTime - timingStartTime) > MIN_MEASUREMENT_TIME.toNanos();
             if (runMinIterations && runMinTime) {
+              monitor.stop();
+              usageAfterRun = memoryAllocationMonitor.memoryUsed();
+              iterations++;
               break;
             }
           } else {
@@ -315,10 +315,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
           iterations++;
         } while (true);
 
-        monitor.stop();
-        usageAfterRun = memoryAllocationMonitor.memoryUsed();
         double usagePerLoop = (double) (usageAfterRun - usageBeforeRun) / iterations / hotLoopIterations;
-        hotLoop = null;
         summarize(elapsedTime, iterations, usagePerLoop, monitor);
         notifier.fireTestFinished(description);
       } catch (Throwable t) {
@@ -334,8 +331,8 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
     private static void summarize(double[] elapsedTime, int iterations, double memoryUsage, ManagementMonitor monitor) {
       String timeSummary = summarizeTime(elapsedTime, iterations);
-      String memorySummary = ManagementMonitor.formatBytes((long) memoryUsage);
-      System.out.println(timeSummary + " " + memorySummary);
+      String memorySummary = formatBytes((long) memoryUsage);
+      System.out.println(timeSummary + ", " + memorySummary);
       monitor.printIfChanged(System.out);
     }
 
