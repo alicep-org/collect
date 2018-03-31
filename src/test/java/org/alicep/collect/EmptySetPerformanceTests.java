@@ -3,11 +3,14 @@ package org.alicep.collect;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -50,38 +53,58 @@ public class EmptySetPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final Set<T> emptySet;
+  private Set<T> emptySet;
 
   @SuppressWarnings("unchecked")
   private final T[] items = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final Set<T>[] emptySets = (Set<T>[]) new Set<?>[50];
 
   int i = 0;
 
   public EmptySetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    for (int i = 0; i < items.length; ++i) {
-      items[i] = config.itemFactory.createItem(i);
-    }
     emptySet = setFactory.get();
+    fill(items, config.itemFactory::createItem);
+    fill(emptySets, $ -> setFactory.get());
   }
 
   @Benchmark("Create an empty set")
   public void create() {
-    setFactory.get();
+    emptySet = setFactory.get();
   }
 
-  @Benchmark("Iterate through an empty set")
-  @InterferenceWarning  // Hitting java.lang.Iterable.forEach, which cannot be cloned
+  @Benchmark("forEach on an empty set")
+  @InterferenceWarning("This test sometimes JITs badly and consumes memory")
+  public void forEach() {
+    next(emptySets).forEach(e -> fail("Found " + e));
+  }
+
+  @Benchmark("iterate through an empty set")
   public void iterate() {
-    emptySet.forEach(e -> fail("Found " + e));
+    Iterator<T> iterator = next(emptySets).iterator();
+    while (iterator.hasNext()) {
+      assertNotNull(iterator.next());
+    }
   }
 
   @Benchmark("Miss in an empty set")
   public void miss() {
-    assertFalse(emptySet.contains(items[i]));
-    if (++i == items.length) {
+    assertFalse(emptySet.contains(next(items)));
+  }
+
+  private <V> V next(V[] array) {
+    ++i;
+    if (i == array.length) {
       i = 0;
+    }
+    return array[i];
+  }
+
+  private static <T> void fill(T[] array, IntFunction<T> factory) {
+    for (int i = 0; i < array.length; ++i) {
+      array[i] = factory.apply(i);
     }
   }
 }

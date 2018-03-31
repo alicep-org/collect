@@ -82,8 +82,13 @@ public class SetTests<T> {
 
   private void addMissingItem(Set<T> arraySet, long index) {
     T item = itemFactory.createItem(index);
-    assertTrue("Failed to insert item #" + (index + 1) + ", " + item,
-        arraySet.add(item));
+    boolean inserted;
+    try {
+      inserted = arraySet.add(item);
+    } catch (RuntimeException e) {
+      throw new AssertionError("Failed to insert item #" + (index + 1) + ", " + item, e);
+    }
+    assertTrue("Failed to insert item #" + (index + 1) + ", " + item, inserted);
   }
 
   private void removePresentItem(Set<T> arraySet, long index) {

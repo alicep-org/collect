@@ -7,8 +7,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -51,50 +53,87 @@ public class SmallSetPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final Set<T> littleSet;
+  private Set<T> littleSet;
 
   @SuppressWarnings("unchecked")
   private final T[] items = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final T[] hitItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final T[] missItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final Set<T>[] littleSets = (Set<T>[]) new Set<?>[50];
 
   int i = 0;
 
   public SmallSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    for (int i = 0; i < items.length; ++i) {
-      items[i] = config.itemFactory.createItem(i);
-    }
+    fill(items, config.itemFactory::createItem);
+    fill(hitItems, i -> config.itemFactory.createItem(i % items.length));
+    fill(missItems, i -> config.itemFactory.createItem(i + items.length));
+
     littleSet = setFactory.get();
-    for (int i = 0; i < 6; i++) {
-      littleSet.add(items[i]);
+    for (T item : items) {
+      littleSet.add(item);
     }
+    fill(littleSets, $ -> {
+      Set<T> set = setFactory.get();
+      for (T item : items) {
+        set.add(item);
+      }
+      return set;
+    });
   }
 
   @Benchmark("Create a 6-element set")
   public void create() {
-    Set<T> set = setFactory.get();
+    littleSet = setFactory.get();
     for (int i = 0; i < 6; ++i) {
-      set.add(items[i]);
+      littleSet.add(items[i]);
     }
   }
 
-  @Benchmark("Iterate through a 6-element set")
-  @InterferenceWarning  // Hitting java.lang.Iterable.forEach, which cannot be cloned
-  public void iterate() {
-    littleSet.forEach(e -> assertNotNull(e));
+  @Benchmark("forEach on a 6-element set")
+  @InterferenceWarning("This test sometimes JITs badly and consumes memory")
+  public void forEach() {
+    next(littleSets).forEach(e -> assertNotNull(e));
   }
 
-  @Benchmark("Hit in a 6-element set")
+  @Benchmark("iterate through a 6-element set")
+  public void iterate() {
+    Iterator<T> iterator = next(littleSets).iterator();
+    while (iterator.hasNext()) {
+      assertNotNull(iterator.next());
+    }
+  }
+
+  @Benchmark("Hit in a 6-element set, identical")
+  public void identityHit() {
+    assertTrue(littleSet.contains(next(items)));
+  }
+
+  @Benchmark("Hit in a 6-element set, not identical")
   public void hit() {
-    assertTrue(littleSet.contains(items[i]));
-    if (++i == 6) i = 0;
+    assertTrue(littleSet.contains(next(hitItems)));
   }
 
   @Benchmark("Miss in a 6-element set")
   public void miss() {
-    assertFalse(littleSet.contains(items[i + 6]));
-    if (++i + 6 == items.length) {
+    assertFalse(littleSet.contains(next(missItems)));
+  }
+
+  private <V> V next(V[] array) {
+    ++i;
+    if (i == array.length) {
       i = 0;
+    }
+    return array[i];
+  }
+
+  private static <T> void fill(T[] array, IntFunction<T> factory) {
+    for (int i = 0; i < array.length; ++i) {
+      array[i] = factory.apply(i);
     }
   }
 }
