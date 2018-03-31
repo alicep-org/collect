@@ -124,12 +124,14 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
   private static final int DEFAULT_CAPACITY = 10;
+  private static final int STORED_HASH_BITS = 1;
+  private static final int STORED_HASH_MASK = 1;
 
   private int size = 0;
   private int modCount = 0;
   private Object[] objects;
   private int head = 0;
-  private long[] lookup;
+  private long[] lookupAndProbe;
 
   public static <T> Collector<T, ?, Set<T>> toArraySet() {
     return Collector.of(ArraySet::new, Set::add, (left, right) -> { left.addAll(right); return left; });
@@ -184,7 +186,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private ArraySet(int initialCapacity) {
     checkArgument(initialCapacity >= 0, "initialCapacity must be non-negative");
     objects = new Object[Math.max(initialCapacity, DEFAULT_CAPACITY)];
-    lookup = newLookupArray();
+    lookupAndProbe = newLookupArray();
   }
 
   @Override
@@ -215,13 +217,14 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
     // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
     ensureFreeCell();
-    long lookupIndex = lookup(insertionObject);
-    if (lookupIndex >= 0) {
+    int hashCode = insertionObject.hashCode();
+    long insertionIndex = insertLocation(insertionObject, hashCode);
+    if (insertionIndex == -1) {
       return false;
     }
     int index = head++;
     objects[index] = insertionObject;
-    addLookup((int) -(lookupIndex + 1), index);
+    addLookup((int) insertionIndex, index, hashCode);
 
     size++;
     modCount++;
@@ -272,27 +275,27 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       return 9;
     } else if (size <= 1<<10) {
       return 10;
-    } else if (size <= 1<<12) {
-      return 12;
-    } else if (size <= 1<<16) {
-      return 16;
-    } else if (size <= 1<<21) {
-      return 21;
-    } else if (size <= 1<<32) {
-      return 32;
+    } else if (size <= 1<<11) {
+      return 11;
+    } else if (size <= 1<<15) {
+      return 15;
+    } else if (size <= 1<<20) {
+      return 20;
+    } else if (size <= 1<<31) {
+      return 31;
     } else {
-      return 64;
+      return 63;
     }
   }
 
   private int lookupEntriesPerLong() {
-    return Long.SIZE / lookupEntryBits();
+    return Long.SIZE / (lookupEntryBits() + STORED_HASH_BITS);
   }
 
   private long[] newLookupArray() {
-    // Aim for a power of two with 50% occupancy maximum
-    int numCells = 1 << (log2ceil(objects.length) + 1);
-    while (objects.length * 2 > numCells) {
+    // Aim for a power of two with 70% occupancy maximum
+    int numCells = 1 << log2ceil(objects.length);
+    while (objects.length + (objects.length >> 1) - (objects.length >> 4) > numCells) {
       numCells = numCells * 2;
     }
     int cellsPerLong = lookupEntriesPerLong();
@@ -301,72 +304,106 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     return lookup;
   }
 
-  private void addLookup(int lookupIndex, int index) {
+  private void addLookup(int lookupIndex, int index, int hashCode) {
     assertState(index != NO_INDEX, "Invalid index");
-    if (lookupEntryBits() < Long.SIZE) {
-      addLookupNibble(lookupIndex, index);
-    } else {
-      lookup[lookupIndex] = index;
+    long word = lookupAndProbe[lookupIndex / lookupEntriesPerLong()];
+    int shift = (lookupEntryBits() + STORED_HASH_BITS) * (lookupIndex % lookupEntriesPerLong()) + 1;
+    word &= ~(lookupMask() << shift);
+    word |= (index & lookupMask()) << shift;
+    lookupAndProbe[lookupIndex / lookupEntriesPerLong()] = word;
+
+    int mask = numLookupCells() - 1;
+    if (lookupIndex != (hashCode & mask)) {
+      addBoundsBust(hashCode & mask);
     }
+  }
+
+  private void addBoundsBust(int lookupIndex) {
+    long word = lookupAndProbe[lookupIndex / lookupEntriesPerLong()];
+    int shift = (lookupEntryBits() + STORED_HASH_BITS) * (lookupIndex % lookupEntriesPerLong());
+    word &= ~(1L << shift);
+    lookupAndProbe[lookupIndex / lookupEntriesPerLong()] = word;
   }
 
   private long lookupMask() {
     return (1 << lookupEntryBits()) - 1;
   }
 
-  private void addLookupNibble(int lookupIndex, int index) {
-    long word = lookup[lookupIndex / lookupEntriesPerLong()];
-    int shift = lookupEntryBits() * (lookupIndex % lookupEntriesPerLong());
-    word &= ~(lookupMask() << shift);
-    word |= (index & lookupMask()) << shift;
-    lookup[lookupIndex / lookupEntriesPerLong()] = word;
+  private long lookupAndBoundsMask() {
+    return (1 << (lookupEntryBits() + STORED_HASH_BITS)) - 1;
   }
 
   /**
-   * If {@code obj} is in the {@code objects} array, returns its index; otherwise, returns
-   * {@code (-(probe insertion point) - 1)}, where "probe insertion point" is
-   * the index of first free cell in {@code lookup} along the probe sequence for {@code obj}.
+   * If {@code obj} is in the {@code objects} array, returns its index; otherwise, returns -1.
    */
   private long lookup(Object obj) {
     int mask = numLookupCells() - 1;
-    int tombstoneIndex = -1;
     int lookupIndex = obj.hashCode();
     int stride = Integer.reverse(lookupIndex) * 2 + 1;
     lookupIndex &= mask;
     stride &= mask;
-    int index;
-    while ((index = getLookupAt(lookupIndex)) != NO_INDEX) {
+    int indexAndHash = getLookupAndBoundsAt(lookupIndex);
+    if (indexAndHash == NO_INDEX) {
+      return -1;
+    }
+    boolean boundsBust = (indexAndHash & STORED_HASH_MASK) == 0;
+    while ((indexAndHash = getLookupAndBoundsAt(lookupIndex)) != NO_INDEX) {
+      int index = indexAndHash >> STORED_HASH_BITS;
       Object other = objects[index];
+      if (other != null && (other == obj || other.equals(obj))) {
+        return index;
+      } else if (!boundsBust) {
+        return -1;
+      }
+      lookupIndex += stride;
+      lookupIndex &= mask;
+    }
+    return -1;
+  }
+
+  private long insertLocation(Object obj, int hashCode) {
+    int mask = numLookupCells() - 1;
+    int tombstoneIndex = -1;
+    int lookupIndex = hashCode;
+    int stride = Integer.reverse(lookupIndex) * 2 + 1;
+    lookupIndex &= mask;
+    stride &= mask;
+    int indexAndHash = getLookupAndBoundsAt(lookupIndex);
+    if (indexAndHash == NO_INDEX) {
+      return lookupIndex;
+    }
+    while ((indexAndHash = getLookupAndBoundsAt(lookupIndex)) != NO_INDEX) {
+      Object other = objects[indexAndHash >> STORED_HASH_BITS];
       if (other == null) {
         if (tombstoneIndex == -1) {
           tombstoneIndex = lookupIndex;
         }
       } else if (other.equals(obj)) {
-        return index;
+        return -1;
       }
       lookupIndex += stride;
       lookupIndex &= mask;
     }
     if (tombstoneIndex != -1) {
-      return -tombstoneIndex - 1;
+      return tombstoneIndex;
     } else {
-      return -lookupIndex - 1;
+      return lookupIndex;
     }
   }
 
   private int numLookupCells() {
-    return Integer.highestOneBit(lookup.length * lookupEntriesPerLong());
+    return Integer.highestOneBit(lookupAndProbe.length * lookupEntriesPerLong());
   }
 
-  private int getLookupAt(int lookupIndex) {
-    long word = lookup[lookupIndex / lookupEntriesPerLong()];
-    int shift = lookupEntryBits() * (lookupIndex % lookupEntriesPerLong());
-    int value = (int) ((word >> shift) & lookupMask());
-    return (value == (NO_INDEX & lookupMask())) ? -1 : value;
+  private int getLookupAndBoundsAt(int lookupIndex) {
+    long word = lookupAndProbe[lookupIndex / lookupEntriesPerLong()];
+    int shift = (lookupEntryBits() + STORED_HASH_BITS) * (lookupIndex % lookupEntriesPerLong());
+    int value = (int) ((word >> shift) & lookupAndBoundsMask());
+    return (value == (NO_INDEX & lookupAndBoundsMask())) ? NO_INDEX : value;
   }
 
   private void clearLookupArray() {
-    Arrays.fill(lookup, -1);
+    Arrays.fill(lookupAndProbe, -1);
   }
 
   /* Other internal methods */
@@ -376,7 +413,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       if (size >= minGrowthThreshold()) {
         int newSize = objects.length + (objects.length >> 1);
         objects = Arrays.copyOf(objects, newSize);
-        lookup = null;
+        lookupAndProbe = null;
       }
       compact();
     }
@@ -391,8 +428,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   }
 
   private void compact() {
-    if (lookup == null) {
-      lookup = newLookupArray();
+    if (lookupAndProbe == null) {
+      lookupAndProbe = newLookupArray();
     } else {
       clearLookupArray();
     }
@@ -405,9 +442,10 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       if (source != target) {
         objects[target] = e;
       }
-      long freeLookupCell = -(lookup(e) + 1);
+      int hashCode = e.hashCode();
+      long freeLookupCell = insertLocation(e, hashCode);
       checkState(freeLookupCell >= 0);
-      addLookup((int) freeLookupCell, target);
+      addLookup((int) freeLookupCell, target, hashCode);
       target++;
     }
     for (; target < objects.length; target++) {
@@ -444,17 +482,17 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private void readObject(java.io.ObjectInputStream s) throws IOException, ClassNotFoundException {
     size = s.readInt();
     objects = new Object[Math.max(size, DEFAULT_CAPACITY)];
-    lookup = newLookupArray();
+    lookupAndProbe = newLookupArray();
     clearLookupArray();
     for (head = 0; head < size; head++) {
       Object e = firstNonNull(s.readObject(), Reserved.NULL);
       objects[head] = e;
-      long x = lookup(e);
-      long freeLookupCell = -(x + 1);
+      int hashCode = e.hashCode();
+      long freeLookupCell = insertLocation(e, hashCode);
       if (freeLookupCell < 0) {
         throw new StreamCorruptedException("Duplicate data found in serialized set");
       }
-      addLookup((int) freeLookupCell, head);
+      addLookup((int) freeLookupCell, head, hashCode);
     }
   }
 
