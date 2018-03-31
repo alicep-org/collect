@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.scaffold.TypeValidation;
 
 /**
  * Clones a classloader, returning equal but not identical classes.
@@ -65,6 +66,7 @@ public class ForkingClassLoader extends ClassLoader {
   protected Class<?> findClass(String name) throws ClassNotFoundException {
     String originalName = name.startsWith(FORK_PACKAGE) ? name.substring(FORK_PACKAGE.length()) : name;
     byte[] bytes = new ByteBuddy()
+        .with(TypeValidation.DISABLED)
         .redefine(original.loadClass(originalName))
         .name(name)
         .visit(new SubstituteClassReferences(this::rename))
