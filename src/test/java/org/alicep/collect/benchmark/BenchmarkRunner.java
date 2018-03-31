@@ -131,7 +131,14 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
               configurationsField,
               configurations.get(index),
               index))
-          .sorted(Ordering.natural().onResultOf(flavour -> flavour.config().toString()))
+          .sorted(Ordering.natural().onResultOf(flavour -> {
+            Object config = flavour.config();
+            if (config instanceof Enum) {
+              return (Enum<?>) config;
+            } else {
+              return config.toString();
+            }
+          }))
           .collect(toList());
     }
 
