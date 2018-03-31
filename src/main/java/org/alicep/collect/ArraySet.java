@@ -126,7 +126,6 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private static final int DEFAULT_CAPACITY = 10;
 
   private int size = 0;
-  private int modCount = 0;
 
   /**
    * Holds the set data. Usually an array, but may be the object itself for a singleton, or null for an empty set.
@@ -265,7 +264,6 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     addLookup((int) -(lookupIndex + 1), index);
 
     size++;
-    modCount++;
     return true;
   }
 
@@ -380,7 +378,6 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     assertState(size != 0, "Size is 0 but a cell is not empty");
     objects[index] = null;
     size--;
-    modCount++;
   }
 
   private void compact() {
@@ -465,17 +462,17 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   /* Iteration */
 
   private class SmallIterator implements Iterator<E> {
-    private int expectedModCount;
+    private int expectedSize;
     private boolean hasNext;
 
     SmallIterator() {
-      expectedModCount = modCount;
+      expectedSize = size;
       hasNext = data != null;
     }
 
     @Override
     public boolean hasNext() {
-      if (modCount != expectedModCount) {
+      if (size != expectedSize) {
         throw new ConcurrentModificationException();
       }
       return hasNext;
@@ -498,23 +495,23 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
     @Override
     public void remove() {
-      if (modCount != expectedModCount) {
+      if (size != expectedSize) {
         throw new ConcurrentModificationException();
       }
       checkState(!hasNext && data != null);
       data = null;
       size = 0;
-      expectedModCount = modCount;
+      expectedSize = 0;
     }
   }
 
   private class LargeIterator implements Iterator<E> {
-    private int expectedModCount;
+    private int expectedSizeAndHead;
     private int index;
     private int nextIndex;
 
     LargeIterator() {
-      expectedModCount = modCount;
+      expectedSizeAndHead = size ^ (head << 8);
       index = -1;
       nextIndex = 0;
       while (nextIndex < head && ((Object[]) data)[nextIndex] == null) {
@@ -524,7 +521,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
     @Override
     public boolean hasNext() {
-      if (modCount != expectedModCount) {
+      if (expectedSizeAndHead != (size ^ (head << 8))) {
         throw new ConcurrentModificationException();
       }
       return nextIndex < head;
@@ -552,12 +549,12 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     @Override
     public void remove() {
       checkState(index != -1);
-      if (modCount != expectedModCount) {
+      if (expectedSizeAndHead != (size ^ (head << 8))) {
         throw new ConcurrentModificationException();
       }
       deleteObjectAtIndex(index);
       index = -1;
-      expectedModCount = modCount;
+      expectedSizeAndHead = size ^ (head << 8);
     }
   }
 }
