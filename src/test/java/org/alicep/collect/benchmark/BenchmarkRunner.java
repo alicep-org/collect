@@ -136,6 +136,11 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
     }
 
     @Override
+    protected String getName() {
+      return getTestClass().getName() + "#" + method.getName();
+    }
+
+    @Override
     public void run(RunNotifier notifier) {
       String title = title();
       System.out.println(title);
