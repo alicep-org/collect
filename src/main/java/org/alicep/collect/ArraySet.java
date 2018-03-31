@@ -129,7 +129,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private int modCount = 0;
   private Object[] objects;
   private int head = 0;
-  private long[] lookup;
+  private int[] lookup;
 
   public static <T> Collector<T, ?, Set<T>> toArraySet() {
     return Collector.of(ArraySet::new, Set::add, (left, right) -> { left.addAll(right); return left; });
@@ -245,81 +245,20 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     return 32 - Integer.numberOfLeadingZeros(value - 1);
   }
 
-  private int lookupEntryBits() {
-    int size = objects.length;
-    // 4 divides 64 into 16
-    // 5 divides 64 into 12
-    // 6 divides 64 into 10
-    // 7 divides 64 into 9
-    // 8 divides 64 into 8
-    // 9 divides 64 into 7
-    // 10 divides 64 into 6
-    // 12 divides 64 into 5
-    // 16 divides 64 into 4
-    // 21 divides 64 into 3
-    // 32 divides 64 into 2
-    if (size <= 1<<4) {
-      return 4;
-    } else if (size <= 1<<5) {
-      return 5;
-    } else if (size <= 1<<6) {
-      return 6;
-    } else if (size <= 1<<7) {
-      return 7;
-    } else if (size <= 1<<8) {
-      return 8;
-    } else if (size <= 1<<9) {
-      return 9;
-    } else if (size <= 1<<10) {
-      return 10;
-    } else if (size <= 1<<12) {
-      return 12;
-    } else if (size <= 1<<16) {
-      return 16;
-    } else if (size <= 1<<21) {
-      return 21;
-    } else if (size <= 1<<32) {
-      return 32;
-    } else {
-      return 64;
-    }
-  }
-
-  private int lookupEntriesPerLong() {
-    return Long.SIZE / lookupEntryBits();
-  }
-
-  private long[] newLookupArray() {
+  private int[] newLookupArray() {
     // Aim for a power of two with 50% occupancy maximum
     int numCells = 1 << (log2ceil(objects.length) + 1);
     while (objects.length * 2 > numCells) {
       numCells = numCells * 2;
     }
-    int cellsPerLong = lookupEntriesPerLong();
-    long[] lookup = new long[1 + (numCells - 1) / cellsPerLong];
+    int[] lookup = new int[numCells];
     Arrays.fill(lookup, -1);
     return lookup;
   }
 
   private void addLookup(int lookupIndex, int index) {
     assertState(index != NO_INDEX, "Invalid index");
-    if (lookupEntryBits() < Long.SIZE) {
-      addLookupNibble(lookupIndex, index);
-    } else {
-      lookup[lookupIndex] = index;
-    }
-  }
-
-  private long lookupMask() {
-    return (1 << lookupEntryBits()) - 1;
-  }
-
-  private void addLookupNibble(int lookupIndex, int index) {
-    long word = lookup[lookupIndex / lookupEntriesPerLong()];
-    int shift = lookupEntryBits() * (lookupIndex % lookupEntriesPerLong());
-    word &= ~(lookupMask() << shift);
-    word |= (index & lookupMask()) << shift;
-    lookup[lookupIndex / lookupEntriesPerLong()] = word;
+    lookup[lookupIndex] = index;
   }
 
   /**
@@ -355,14 +294,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   }
 
   private int numLookupCells() {
-    return Integer.highestOneBit(lookup.length * lookupEntriesPerLong());
+    return lookup.length;
   }
 
   private int getLookupAt(int lookupIndex) {
-    long word = lookup[lookupIndex / lookupEntriesPerLong()];
-    int shift = lookupEntryBits() * (lookupIndex % lookupEntriesPerLong());
-    int value = (int) ((word >> shift) & lookupMask());
-    return (value == (NO_INDEX & lookupMask())) ? -1 : value;
+    return lookup[lookupIndex];
   }
 
   private void clearLookupArray() {
