@@ -125,7 +125,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private static final int NO_INDEX = -1;
   private static final int DEFAULT_CAPACITY = 10;
 
+  /** Size of the set. */
   private int size = 0;
+
+  /** Next location to insert into {@link #data}, if it is an array. */
+  private int head = 0;
 
   /**
    * Holds the set data. Usually an array, but may be the object itself for a singleton, or null for an empty set.
@@ -133,7 +137,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    * <p>{@link #lookup} will be null when this is not an array.
    */
   private Object data;
-  private int head = 0;
+
+  /** Open-addressed hash table of indices into the {@link #data} array. Collisions are resolved with double hashing. */
   private int[] lookup;
 
   public static <T> Collector<T, ?, Set<T>> toArraySet() {
