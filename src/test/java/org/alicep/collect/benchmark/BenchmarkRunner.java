@@ -358,9 +358,10 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   }
 
   private static boolean isCoreCollection(Class<?> cls) {
-    return cls.getPackage().getName().equals("java.util")
-        && !cls.isInterface()
-        && (Map.class.isAssignableFrom(cls) || Set.class.isAssignableFrom(cls));
+    boolean isInJavaUtil = cls.getPackage().getName().equals("java.util");
+    boolean isClass = !cls.isInterface();
+    boolean isCollection = Map.class.isAssignableFrom(cls) || Set.class.isAssignableFrom(cls);
+    return isInJavaUtil && isClass && isCollection;
   }
 
   private static final Map<Integer, String> SCALES = ImmutableMap.<Integer, String>builder()
