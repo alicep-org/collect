@@ -7,8 +7,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -51,45 +53,85 @@ public class SingletonPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final Set<T> littleSet;
+  private Set<T> singleton;
 
+  private final T item;
   @SuppressWarnings("unchecked")
-  private final T[] items = (T[]) new Object[5000];
+  private final T[] hitItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final T[] missItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final Set<T>[] singletons = (Set<T>[]) new Set<?>[30];
 
   int i = 0;
 
   public SingletonPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    for (int i = 0; i < items.length; ++i) {
-      items[i] = config.itemFactory.createItem(i);
-    }
-    littleSet = setFactory.get();
-    littleSet.add(items[0]);
+    item = config.itemFactory.createItem(0);
+    singleton = setFactory.get();
+    singleton.add(item);
+    assertForked(singleton);
+    fill(hitItems, $ -> config.itemFactory.createItem(0));
+    fill(missItems, i -> config.itemFactory.createItem(i + 1));
+    fill(singletons, $ -> {
+      Set<T> set = setFactory.get();
+      set.add(item);
+      return set;
+    });
   }
 
   @Benchmark("Create a singleton set")
   public void create() {
-    Set<T> set = setFactory.get();
-    set.add(items[0]);
+    singleton = setFactory.get();
+    singleton.add(item);
   }
 
-  @Benchmark("Iterate through a singleton set")
-  @InterferenceWarning  // Hitting java.lang.Iterable.forEach, which cannot be cloned
+  @Benchmark("forEach on a singleton set")
+  @InterferenceWarning("This test sometimes JITs badly and consumes memory")
+  public void forEach() {
+    next(singletons).forEach(e -> assertNotNull(e));
+  }
+
+  @Benchmark("iterate through a singleton set")
   public void iterate() {
-    littleSet.forEach(e -> assertNotNull(e));
+    Iterator<T> iterator = next(singletons).iterator();
+    while (iterator.hasNext()) {
+      assertNotNull(iterator.next());
+    }
   }
 
-  @Benchmark("Hit in a singleton set")
+  @Benchmark("Hit in a singleton set, identical")
+  public void identityHit() {
+    assertTrue(next(singletons).contains(item));
+  }
+
+  @Benchmark("Hit in a singleton set, not identical")
   public void hit() {
-    assertTrue(littleSet.contains(items[0]));
+    assertTrue(singleton.contains(next(hitItems)));
   }
 
   @Benchmark("Miss in a singleton set")
   public void miss() {
-    assertFalse(littleSet.contains(items[i + 1]));
-    if (++i + 1 == items.length) {
+    assertFalse(singleton.contains(next(missItems)));
+  }
+
+  private static void assertForked(Object object) {
+    String className = object.getClass().getName();
+    assertTrue(className + " not forked", !className.startsWith("java."));
+  }
+
+  private <V> V next(V[] array) {
+    ++i;
+    if (i == array.length) {
       i = 0;
+    }
+    return array[i];
+  }
+
+  private static <T> void fill(T[] array, IntFunction<T> factory) {
+    for (int i = 0; i < array.length; ++i) {
+      array[i] = factory.apply(i);
     }
   }
 }

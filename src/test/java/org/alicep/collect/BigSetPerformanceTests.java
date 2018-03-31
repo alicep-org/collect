@@ -74,10 +74,9 @@ public class BigSetPerformanceTests<T> {
 
   @Benchmark("Create a 1M-element map")
   public void create() {
-    bigSet = null;
-    Set<T> set = setFactory.get();
+    bigSet = setFactory.get();
     for (T item : elements) {
-      set.add(item);
+      bigSet.add(item);
     }
   }
 
