@@ -246,7 +246,43 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   }
 
   private int lookupEntryBits() {
-    return log2ceil(objects.length);
+    int size = objects.length;
+    // 4 divides 64 into 16
+    // 5 divides 64 into 12
+    // 6 divides 64 into 10
+    // 7 divides 64 into 9
+    // 8 divides 64 into 8
+    // 9 divides 64 into 7
+    // 10 divides 64 into 6
+    // 12 divides 64 into 5
+    // 16 divides 64 into 4
+    // 21 divides 64 into 3
+    // 32 divides 64 into 2
+    if (size <= 1<<4) {
+      return 4;
+    } else if (size <= 1<<5) {
+      return 5;
+    } else if (size <= 1<<6) {
+      return 6;
+    } else if (size <= 1<<7) {
+      return 7;
+    } else if (size <= 1<<8) {
+      return 8;
+    } else if (size <= 1<<9) {
+      return 9;
+    } else if (size <= 1<<10) {
+      return 10;
+    } else if (size <= 1<<12) {
+      return 12;
+    } else if (size <= 1<<16) {
+      return 16;
+    } else if (size <= 1<<21) {
+      return 21;
+    } else if (size <= 1<<32) {
+      return 32;
+    } else {
+      return 64;
+    }
   }
 
   private int lookupEntriesPerLong() {
