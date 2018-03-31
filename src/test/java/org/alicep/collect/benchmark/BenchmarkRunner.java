@@ -50,7 +50,9 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
   @Documented
   @Retention(RetentionPolicy.RUNTIME)
   @Target(ElementType.METHOD)
-  public @interface InterferenceWarning { }
+  public @interface InterferenceWarning {
+    String value() default "This test tends to be unreliable";
+  }
 
   @Documented
   @Retention(RetentionPolicy.RUNTIME)
@@ -138,9 +140,9 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
       String title = title();
       System.out.println(title);
       System.out.println(Stream.generate(() -> "-").limit(title.length()).collect(joining()));
-      if (method.getAnnotation(InterferenceWarning.class) != null
-          && getDescription().getChildren().size() > 1) {
-        System.out.println(" ** This test tends to be unreliable **");
+      InterferenceWarning interferenceWarning = method.getAnnotation(InterferenceWarning.class);
+      if (interferenceWarning != null && getDescription().getChildren().size() > 1) {
+        System.out.println(" ** " + interferenceWarning.value() + " **");
         System.out.println("    Run in isolation for trustworthy results");
       }
       memoryAllocationMonitor.warnIfMonitoringDisabled();
