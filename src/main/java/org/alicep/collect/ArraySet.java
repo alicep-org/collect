@@ -124,12 +124,16 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
   private static final int DEFAULT_CAPACITY = 10;
-  private static int[] NO_LOOKUPS = new int[0];
-  private static Object[] NO_OBJECTS = new Object[0];
 
   private int size = 0;
   private int modCount = 0;
-  private Object[] objects;
+
+  /**
+   * Holds the set data. Usually an array, but may be the object itself for a singleton, or null for an empty set.
+   *
+   * <p>{@link #lookup} will be null when this is not an array.
+   */
+  private Object data;
   private int head = 0;
   private int[] lookup;
 
@@ -141,8 +145,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    * Constructs an empty set with an initial capacity of ten.
    */
   public ArraySet() {
-    objects = NO_OBJECTS;
-    lookup = NO_LOOKUPS;
+    data = null;
+    lookup = null;
   }
 
   /**
@@ -161,11 +165,20 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public void forEach(Consumer<? super E> action) {
-    for (int i = 0; i < head; ++i) {
+    if (lookup == null) {
       @SuppressWarnings("unchecked")
-      E item = (E) objects[i];
+      E item = (E) data;
       if (item != null) {
         action.accept(item == Reserved.NULL ? null : item);
+      }
+    } else {
+      @SuppressWarnings("unchecked")
+      E[] objects = (E[]) data;
+      for (int i = 0; i < head; ++i) {
+        E item = objects[i];
+        if (item != null) {
+          action.accept(item == Reserved.NULL ? null : item);
+        }
       }
     }
   }
@@ -186,7 +199,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private ArraySet(int initialCapacity) {
     checkArgument(initialCapacity >= 0, "initialCapacity must be non-negative");
-    objects = new Object[Math.max(initialCapacity, DEFAULT_CAPACITY)];
+    data = new Object[Math.max(initialCapacity, DEFAULT_CAPACITY)];
     lookup = newLookupArray();
   }
 
@@ -197,7 +210,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public Iterator<E> iterator() {
-    return new IteratorImpl();
+    return (lookup == null) ? new SmallIterator() : new LargeIterator();
   }
 
   @Override
@@ -207,10 +220,10 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean contains(Object o) {
-    if (lookup.length == 0) {
-      return false;
-    }
     Object comparisonObject = (o == null) ? Reserved.NULL : o;
+    if (lookup == null) {
+      return data == comparisonObject || (data != null && data.equals(comparisonObject));
+    }
     long index = lookup(comparisonObject);
     return (index >= 0);
   }
@@ -218,9 +231,31 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   @Override
   public boolean add(E e) {
     Object insertionObject = firstNonNull(e, Reserved.NULL);
+    Object[] objects;
 
-    // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
-    ensureFreeCell();
+    if (lookup == null) {
+      Object existing = data;
+      if (existing == null) {
+        data = insertionObject;
+        size++;
+        return true;
+      } else if (data == insertionObject) {
+        return false;
+      }
+      objects = new Object[DEFAULT_CAPACITY];
+      objects[0] = data;
+      data = objects;
+      lookup = newLookupArray();
+      long freeLookupCell = -(lookup(existing) + 1);
+      checkState(freeLookupCell >= 0);
+      addLookup((int) freeLookupCell, 0);
+      head = 1;
+    } else {
+      // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
+      ensureFreeCell();
+      objects = (Object[]) data;
+    }
+
     long lookupIndex = lookup(insertionObject);
     if (lookupIndex >= 0) {
       return false;
@@ -236,10 +271,16 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean remove(Object o) {
-    if (lookup.length == 0) {
-      return false;
+    Object removingObject = (o == null) ? Reserved.NULL : o;
+    if (lookup == null) {
+      if (data == null || (data != removingObject && !data.equals(removingObject))) {
+        return false;
+      }
+      data = null;
+      size = 0;
+      return true;
     }
-    long index = lookup((o == null) ? Reserved.NULL : o);
+    long index = lookup(removingObject);
     if (index < 0) {
       return false;
     }
@@ -256,8 +297,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private int[] newLookupArray() {
     // Aim for a power of two with 50% occupancy maximum
-    int numCells = 1 << (log2ceil(objects.length) + 1);
-    while (objects.length * 2 > numCells) {
+    int length = ((Object[]) data).length;
+    int numCells = 1 << (log2ceil(length) + 1);
+    while (length * 2 > numCells) {
       numCells = numCells * 2;
     }
     int[] lookup = new int[numCells];
@@ -276,6 +318,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    * the index of first free cell in {@code lookup} along the probe sequence for {@code obj}.
    */
   private long lookup(Object obj) {
+    Object[] objects = (Object[]) data;
     int mask = numLookupCells() - 1;
     int tombstoneIndex = -1;
     int lookupIndex = obj.hashCode();
@@ -317,20 +360,22 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   /* Other internal methods */
 
   private void ensureFreeCell() {
-    if (objects.length == 0) {
-      objects = new Object[DEFAULT_CAPACITY];
-      lookup = newLookupArray();
-    } else if (objects.length == head) {
-      if (size >= minGrowthThreshold()) {
-        int newSize = objects.length + (objects.length >> 1);
-        objects = Arrays.copyOf(objects, newSize);
-        lookup = null;
+    Object[] objects = (Object[]) data;
+    int oldCapacity = objects.length;
+    if (oldCapacity == head) {
+      if (size >= minGrowthThreshold(oldCapacity)) {
+        int newCapacity = oldCapacity + (oldCapacity >> 1);
+        data = Arrays.copyOf(objects, newCapacity);
+        lookup = newLookupArray();
+      } else {
+        clearLookupArray();
       }
       compact();
     }
   }
 
   private void deleteObjectAtIndex(int index) {
+    Object[] objects = (Object[]) data;
     assertState(objects[index] != null, "Cannot delete empty cell");
     assertState(size != 0, "Size is 0 but a cell is not empty");
     objects[index] = null;
@@ -339,12 +384,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   }
 
   private void compact() {
-    if (lookup == null) {
-      lookup = newLookupArray();
-    } else {
-      clearLookupArray();
-    }
     int target = 0;
+    Object[] objects = (Object[]) data;
     for (int source = 0; source < objects.length; source++) {
       Object e = objects[source];
       if (e == null) {
@@ -364,9 +405,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     head = size;
   }
 
-  private int minGrowthThreshold() {
+  private static int minGrowthThreshold(int capacity) {
     // Grow the objects array if less than a quarter of it is DELETED tombstones when it fills up.
-    return objects.length * 3 / 4;
+    return capacity * 3 / 4;
   }
 
   private static void assertState(boolean condition, String message, Object... args) {
@@ -381,17 +422,32 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private void writeObject(java.io.ObjectOutputStream s) throws IOException {
     s.writeInt(size);
-    for (int i = 0; i < head; ++i) {
-      Object o = objects[i];
-      if (o != null) {
-        s.writeObject(o == Reserved.NULL ? null : o);
+    if (lookup == null) {
+      if (data != null) {
+        s.writeObject(data == Reserved.NULL ? null : data);
+      }
+    } else {
+      Object[] objects = (Object[]) data;
+      for (int i = 0; i < head; ++i) {
+        Object o = objects[i];
+        if (o != null) {
+          s.writeObject(o == Reserved.NULL ? null : o);
+        }
       }
     }
   }
 
   private void readObject(java.io.ObjectInputStream s) throws IOException, ClassNotFoundException {
     size = s.readInt();
-    objects = new Object[Math.max(size, DEFAULT_CAPACITY)];
+    if (size == 0) {
+      return;
+    } else if (size == 1) {
+      data = firstNonNull(s.readObject(), Reserved.NULL);
+      return;
+    }
+
+    Object[] objects = new Object[Math.max(size, DEFAULT_CAPACITY)];
+    data = objects;
     lookup = newLookupArray();
     clearLookupArray();
     for (head = 0; head < size; head++) {
@@ -408,16 +464,60 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   /* Iteration */
 
-  private class IteratorImpl implements Iterator<E> {
+  private class SmallIterator implements Iterator<E> {
+    private int expectedModCount;
+    private boolean hasNext;
+
+    SmallIterator() {
+      expectedModCount = modCount;
+      hasNext = data != null;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (modCount != expectedModCount) {
+        throw new ConcurrentModificationException();
+      }
+      return hasNext;
+    }
+
+    @Override
+    public E next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      hasNext = false;
+
+      @SuppressWarnings("unchecked")
+      E o = (E) data;
+      if (o == null) {
+        throw new ConcurrentModificationException();
+      }
+      return (o == Reserved.NULL) ? null : o;
+    }
+
+    @Override
+    public void remove() {
+      if (modCount != expectedModCount) {
+        throw new ConcurrentModificationException();
+      }
+      checkState(!hasNext && data != null);
+      data = null;
+      size = 0;
+      expectedModCount = modCount;
+    }
+  }
+
+  private class LargeIterator implements Iterator<E> {
     private int expectedModCount;
     private int index;
     private int nextIndex;
 
-    IteratorImpl() {
+    LargeIterator() {
       expectedModCount = modCount;
       index = -1;
       nextIndex = 0;
-      while (nextIndex < head && objects[nextIndex] == null) {
+      while (nextIndex < head && ((Object[]) data)[nextIndex] == null) {
         nextIndex++;
       }
     }
@@ -439,10 +539,10 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       index = nextIndex;
       do {
         nextIndex++;
-      } while (nextIndex < head && objects[nextIndex] == null);
+      } while (nextIndex < head && ((Object[]) data)[nextIndex] == null);
 
       @SuppressWarnings("unchecked")
-      E o = (E) objects[index];
+      E o = ((E[]) data)[index];
       if (o == null) {
         throw new ConcurrentModificationException();
       }
