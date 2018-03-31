@@ -95,23 +95,17 @@ import java.util.stream.Collector;
  * some or all of the details.
  *
  * <p>This implementation stores all elements in an insertion-ordered
- * array.  Lookup is done via a compressed hashtable of indices, using
+ * array.  Lookup is done via a hashtable of indices, using
  * <a href="https://en.wikipedia.org/wiki/Double_hashing">double hashing</a>
- * to reduce collisions.  Small sets achieve a higher compression rate,
- * as lookup indexes require fewer bits; a newly-allocated instance
- * needs only 4 bits per bucket to index the default 10-element array.
- * As the set grows, the element array grows in the same manner as a
- * <tt>ArrayList</tt>, and the index hashtable is regenerated.
+ * to reduce collisions. As the set grows, the element array grows in the same
+ * manner as an <tt>ArrayList</tt>, and the index hashtable is regenerated.
  *
  * <p>Iteration performance is similar to <tt>ArrayList</tt>, though if a lot
  * of elements are deleted, the element array will not be shrunk, meaning
  * iteration performance does not recover once a set has been large.
  *
- * <p>Memory overhead is a pointer and a half plus a handful of bits per
- * element in the set.  In contrast, <tt>HashSet</tt> allocates approximately
- * five pointers plus 16 bytes per element, while <tt>LinkedHashSet</tt>
- * allocates two more pointers on top of that; an <tt>ArrayList</tt> uses
- * around a pointer and a half.
+ * <p>Empty and singleton sets do not allocate any arrays, taking 32B total.
+ * Arrays will be allocated once insert is called for a second time.
  *
  * @param <E> the type of elements maintained by this set
  *
