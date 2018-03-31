@@ -124,6 +124,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private enum Reserved { NULL }
   private static final int NO_INDEX = -1;
   private static final int DEFAULT_CAPACITY = 10;
+  private static int[] NO_LOOKUPS = new int[0];
+  private static Object[] NO_OBJECTS = new Object[0];
 
   private int size = 0;
   private int modCount = 0;
@@ -139,7 +141,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    * Constructs an empty set with an initial capacity of ten.
    */
   public ArraySet() {
-    this(DEFAULT_CAPACITY);
+    objects = NO_OBJECTS;
+    lookup = NO_LOOKUPS;
   }
 
   /**
@@ -204,6 +207,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean contains(Object o) {
+    if (lookup.length == 0) {
+      return false;
+    }
     Object comparisonObject = (o == null) ? Reserved.NULL : o;
     long index = lookup(comparisonObject);
     return (index >= 0);
@@ -230,6 +236,9 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean remove(Object o) {
+    if (lookup.length == 0) {
+      return false;
+    }
     long index = lookup((o == null) ? Reserved.NULL : o);
     if (index < 0) {
       return false;
@@ -308,7 +317,10 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   /* Other internal methods */
 
   private void ensureFreeCell() {
-    if (objects.length == head) {
+    if (objects.length == 0) {
+      objects = new Object[DEFAULT_CAPACITY];
+      lookup = newLookupArray();
+    } else if (objects.length == head) {
       if (size >= minGrowthThreshold()) {
         int newSize = objects.length + (objects.length >> 1);
         objects = Arrays.copyOf(objects, newSize);
