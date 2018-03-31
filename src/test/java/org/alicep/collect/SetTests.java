@@ -73,10 +73,10 @@ public class SetTests<T> {
     for (long index = 0; index < 1000; index++) {
       if (index >= size) {
         removePresentItem(arraySet, index - size);
-        verifyItems(arraySet, index - size + 1, index - 1);
+        verifyItems(arraySet, index - size + 1, index - 1, " after removing item " + (index + 1));
       }
       addMissingItem(arraySet, index);
-      verifyItems(arraySet, Math.max(index - size + 1, 0), index);
+      verifyItems(arraySet, Math.max(index - size + 1, 0), index, " after inserting item " + (index + 1));
     }
   }
 
@@ -92,16 +92,16 @@ public class SetTests<T> {
         arraySet.remove(item));
   }
 
-  private void verifyItems(Set<T> arraySet, long firstIndex, long lastIndex) {
+  private void verifyItems(Set<T> arraySet, long firstIndex, long lastIndex, String when) {
     assertTrue(lastIndex >= firstIndex);
     for (long index = firstIndex - 20; index < firstIndex; index++) {
-      assertFalse("Regained item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
+      assertFalse("Regained item " + (index + 1) + " " + when, arraySet.contains(itemFactory.createItem(index)));
     }
     for (long index = firstIndex; index <= lastIndex; index++) {
-      assertTrue("Lost item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
+      assertTrue("Lost item " + (index + 1) + " " + when, arraySet.contains(itemFactory.createItem(index)));
     }
     for (long index = lastIndex + 1; index <= lastIndex + 20; index++) {
-      assertFalse("Unexpected item " + (index + 1), arraySet.contains(itemFactory.createItem(index)));
+      assertFalse("Unexpected item " + (index + 1) + " " + when, arraySet.contains(itemFactory.createItem(index)));
     }
   }
 }
