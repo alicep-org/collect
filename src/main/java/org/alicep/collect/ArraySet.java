@@ -292,23 +292,6 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     return 32 - Integer.numberOfLeadingZeros(value - 1);
   }
 
-  private int[] newLookupArray() {
-    // Aim for a power of two with 50% occupancy maximum
-    int length = ((Object[]) data).length;
-    int numCells = 1 << (log2ceil(length) + 1);
-    while (length * 2 > numCells) {
-      numCells = numCells * 2;
-    }
-    int[] lookup = new int[numCells];
-    Arrays.fill(lookup, -1);
-    return lookup;
-  }
-
-  private void addLookup(int lookupIndex, int index) {
-    assertState(index != NO_INDEX, "Invalid index");
-    lookup[lookupIndex] = index;
-  }
-
   /**
    * If {@code obj} is in the {@code objects} array, returns its index; otherwise, returns
    * {@code (-(probe insertion point) - 1)}, where "probe insertion point" is
@@ -342,12 +325,29 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     }
   }
 
-  private int numLookupCells() {
-    return lookup.length;
+  private int[] newLookupArray() {
+    // Aim for a power of two with 50% occupancy maximum
+    int length = ((Object[]) data).length;
+    int numCells = 1 << (log2ceil(length) + 1);
+    while (length * 2 > numCells) {
+      numCells = numCells * 2;
+    }
+    int[] lookup = new int[numCells];
+    Arrays.fill(lookup, -1);
+    return lookup;
   }
 
   private int getLookupAt(int lookupIndex) {
     return lookup[lookupIndex];
+  }
+
+  private int numLookupCells() {
+    return lookup.length;
+  }
+
+  private void addLookup(int lookupIndex, int index) {
+    assertState(index != NO_INDEX, "Invalid index");
+    lookup[lookupIndex] = index;
   }
 
   private void clearLookupArray() {
