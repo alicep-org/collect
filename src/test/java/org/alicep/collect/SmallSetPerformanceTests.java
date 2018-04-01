@@ -56,7 +56,7 @@ public class SmallSetPerformanceTests<T> {
   private Set<T> littleSet;
 
   @SuppressWarnings("unchecked")
-  private final T[] items = (T[]) new Object[5000];
+  private final T[] items = (T[]) new Object[6];
   @SuppressWarnings("unchecked")
   private final T[] hitItems = (T[]) new Object[5000];
   @SuppressWarnings("unchecked")
