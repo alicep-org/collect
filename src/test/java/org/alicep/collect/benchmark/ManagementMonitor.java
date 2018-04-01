@@ -1,6 +1,5 @@
 package org.alicep.collect.benchmark;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.management.ManagementFactory.getClassLoadingMXBean;
 import static java.lang.management.ManagementFactory.getCompilationMXBean;
 import static java.lang.management.ManagementFactory.getGarbageCollectorMXBeans;
@@ -14,9 +13,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
-import com.google.common.collect.ImmutableMap;
 
 class ManagementMonitor {
 
@@ -156,41 +152,6 @@ class ManagementMonitor {
     public boolean codeCacheIncreased() {
       return codeCacheBean.getUsage().getUsed() > startSize;
     }
-
-  }
-
-  private static final Map<Integer, String> SCALES = ImmutableMap.<Integer, String>builder()
-      .put(0, "")
-      .put(3, "K")
-      .put(6, "M")
-      .put(9, "G")
-      .put(12, "T")
-      .build();
-
-  static String formatBytes(long bytes) {
-    checkArgument(bytes >= 0);
-    if (bytes < 995) return bytes + "B";
-    double scaled = bytes;
-    int scale = 0;
-    while (scaled >= 995) {
-      scaled /= 1000;
-      scale += 3;
-    }
-    String significand;
-    if (scaled < 9.95) {
-      significand = String.format("%.1f", scaled);
-    } else if (scaled < 99.5) {
-      significand = String.format("%.1f", scaled);
-    } else {
-      significand = Long.toString(Math.round(scaled * 10) / 10);
-    }
-
-    if (SCALES.containsKey(scale)) {
-      return String.format("%s%sB", significand, SCALES.get(scale));
-    } else {
-      return String.format("%se%dB", significand, scale);
-    }
-
   }
 
   private final List<Monitor> monitors = new ArrayList<>();
