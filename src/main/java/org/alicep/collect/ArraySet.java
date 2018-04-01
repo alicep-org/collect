@@ -105,7 +105,8 @@ import java.util.stream.Collector;
  * iteration performance does not recover once a set has been large.
  *
  * <p>Empty and singleton sets do not allocate any arrays, taking 32B total.
- * Arrays will be allocated once insert is called for a second time.
+ * Arrays will be allocated once insert is called for a second time, bringing
+ * memory use up to 136B until the next resize (11 elements).
  *
  * @param <E> the type of elements maintained by this set
  *
@@ -132,8 +133,12 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
    */
   private Object data;
 
-  /** Open-addressed hash table of indices into the {@link #data} array. Collisions are resolved with double hashing. */
-  private int[] lookup;
+  /**
+   * Open-addressed hash table of indices into the {@link #data} array. Collisions are resolved with double hashing.
+   *
+   * <p>Depending on the size of the data array, this could be null (0-1), a byte[] (up to 255) or an int[].
+   */
+  private Object lookup;
 
   public static <T> Collector<T, ?, Set<T>> toArraySet() {
     return Collector.of(ArraySet::new, Set::add, (left, right) -> { left.addAll(right); return left; });
@@ -218,49 +223,89 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean contains(Object o) {
-    Object comparisonObject = (o == null) ? Reserved.NULL : o;
+    Object obj = (o == null) ? Reserved.NULL : o;
     if (lookup == null) {
-      return data == comparisonObject || (data != null && data.equals(comparisonObject));
+      return singletonContains(obj);
+    } else if (lookup instanceof byte[]) {
+      return smallContains(obj, (byte[]) lookup);
+    } else {
+      return largeContains(obj, (int[]) lookup);
     }
-    long index = lookup(comparisonObject);
+  }
+
+  private boolean singletonContains(Object obj) {
+    return data == obj || (data != null && data.equals(obj));
+  }
+
+  private boolean smallContains(Object obj, byte[] lookups) {
+    long index = lookup(obj, lookups);
+    return (index >= 0);
+  }
+
+  private boolean largeContains(Object obj, int[] lookups) {
+    long index = lookup(obj, lookups);
     return (index >= 0);
   }
 
   @Override
   public boolean add(E e) {
-    Object insertionObject = firstNonNull(e, Reserved.NULL);
-    Object[] objects;
+    Object obj = firstNonNull(e, Reserved.NULL);
 
     if (lookup == null) {
-      Object existing = data;
-      if (existing == null) {
-        data = insertionObject;
-        size++;
-        return true;
-      } else if (data == insertionObject) {
-        return false;
-      }
-      objects = new Object[DEFAULT_CAPACITY];
-      objects[0] = data;
-      data = objects;
-      lookup = newLookupArray();
-      long freeLookupCell = -(lookup(existing) + 1);
-      checkState(freeLookupCell >= 0);
-      addLookup((int) freeLookupCell, 0);
-      head = 1;
-    } else {
-      // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
-      ensureFreeCell();
-      objects = (Object[]) data;
+      return singletonAdd(obj);
     }
+    // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
+    ensureFreeCell();
+    Object[] objects = (Object[]) data;
+    if (lookup instanceof byte[]) {
+      return smallAdd(obj, (byte[]) lookup, objects);
+    } else {
+      return largeAdd(obj, (int[]) lookup, objects);
+    }
+  }
 
-    long lookupIndex = lookup(insertionObject);
+  private boolean singletonAdd(Object obj) {
+    Object existing = data;
+    if (existing == null) {
+      data = obj;
+      size++;
+      return true;
+    } else if (data == obj) {
+      return false;
+    }
+    Object[] objects = new Object[DEFAULT_CAPACITY];
+    objects[0] = data;
+    data = objects;
+    byte[] lookups = (byte[]) newLookupArray();
+    lookup = lookups;
+    long freeLookupCell = -(lookup(existing, lookups) + 1);
+    checkState(freeLookupCell >= 0);
+    addLookup((int) freeLookupCell, 0, lookups);
+    head = 1;
+    return smallAdd(obj, lookups, objects);
+  }
+
+  private boolean smallAdd(Object obj, byte[] lookups, Object[] objects) {
+    long lookupIndex = lookup(obj, lookups);
     if (lookupIndex >= 0) {
       return false;
     }
     int index = head++;
-    objects[index] = insertionObject;
-    addLookup((int) -(lookupIndex + 1), index);
+    objects[index] = obj;
+    addLookup((int) -(lookupIndex + 1), index, lookups);
+
+    size++;
+    return true;
+  }
+
+  private boolean largeAdd(Object obj, int[] lookups, Object[] objects) {
+    long lookupIndex = lookup(obj, lookups);
+    if (lookupIndex >= 0) {
+      return false;
+    }
+    int index = head++;
+    objects[index] = obj;
+    addLookup((int) -(lookupIndex + 1), index, lookups);
 
     size++;
     return true;
@@ -268,16 +313,37 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public boolean remove(Object o) {
-    Object removingObject = (o == null) ? Reserved.NULL : o;
+    Object obj = (o == null) ? Reserved.NULL : o;
     if (lookup == null) {
-      if (data == null || (data != removingObject && !data.equals(removingObject))) {
-        return false;
-      }
-      data = null;
-      size = 0;
-      return true;
+      return singletonRemove(obj);
+    } else if (lookup instanceof byte[]) {
+      return smallRemove(obj, (byte[]) lookup);
+    } else {
+      return largeRemove(obj, (int[]) lookup);
     }
-    long index = lookup(removingObject);
+  }
+
+  private boolean singletonRemove(Object obj) {
+    if (data == null || (data != obj && !data.equals(obj))) {
+      return false;
+    }
+    data = null;
+    size = 0;
+    return true;
+  }
+
+  private boolean smallRemove(Object obj, byte[] lookups) {
+    long index = lookup(obj, lookups);
+    if (index < 0) {
+      return false;
+    }
+
+    deleteObjectAtIndex((int) index);
+    return true;
+  }
+
+  private boolean largeRemove(Object obj, int[] lookups) {
+    long index = lookup(obj, lookups);
     if (index < 0) {
       return false;
     }
@@ -295,18 +361,18 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   /**
    * If {@code obj} is in the {@code objects} array, returns its index; otherwise, returns
    * {@code (-(probe insertion point) - 1)}, where "probe insertion point" is
-   * the index of first free cell in {@code lookup} along the probe sequence for {@code obj}.
+   * the index of first free cell in {@code lookups} along the probe sequence for {@code obj}.
    */
-  private long lookup(Object obj) {
+  private long lookup(Object obj, byte[] lookups) {
     Object[] objects = (Object[]) data;
-    int mask = numLookupCells() - 1;
+    int mask = numLookupCells(lookups) - 1;
     int tombstoneIndex = -1;
     int lookupIndex = obj.hashCode();
     int stride = Integer.reverse(lookupIndex) * 2 + 1;
     lookupIndex &= mask;
     stride &= mask;
     int index;
-    while ((index = getLookupAt(lookupIndex)) != NO_INDEX) {
+    while ((index = getLookupAt(lookupIndex, lookups)) != NO_INDEX) {
       Object other = objects[index];
       if (other == null) {
         if (tombstoneIndex == -1) {
@@ -325,31 +391,87 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     }
   }
 
-  private int[] newLookupArray() {
+
+  /**
+   * If {@code obj} is in the {@code objects} array, returns its index; otherwise, returns
+   * {@code (-(probe insertion point) - 1)}, where "probe insertion point" is
+   * the index of first free cell in {@code lookups} along the probe sequence for {@code obj}.
+   */
+  private long lookup(Object obj, int[] lookups) {
+    Object[] objects = (Object[]) data;
+    int mask = numLookupCells(lookups) - 1;
+    int tombstoneIndex = -1;
+    int lookupIndex = obj.hashCode();
+    int stride = Integer.reverse(lookupIndex) * 2 + 1;
+    lookupIndex &= mask;
+    stride &= mask;
+    int index;
+    while ((index = getLookupAt(lookupIndex, lookups)) != NO_INDEX) {
+      Object other = objects[index];
+      if (other == null) {
+        if (tombstoneIndex == -1) {
+          tombstoneIndex = lookupIndex;
+        }
+      } else if (other.equals(obj)) {
+        return index;
+      }
+      lookupIndex += stride;
+      lookupIndex &= mask;
+    }
+    if (tombstoneIndex != -1) {
+      return -tombstoneIndex - 1;
+    } else {
+      return -lookupIndex - 1;
+    }
+  }
+
+  private Object newLookupArray() {
     // Aim for a power of two with 50% occupancy maximum
     int length = ((Object[]) data).length;
     int numCells = 1 << (log2ceil(length) + 1);
     while (length * 2 > numCells) {
       numCells = numCells * 2;
     }
-    return new int[numCells];
+    if (length <= 255) {
+      return new byte[numCells];
+    } else {
+      return new int[numCells];
+    }
   }
 
-  private int getLookupAt(int lookupIndex) {
-    return lookup[lookupIndex] - 1;
+  private static int getLookupAt(int lookupIndex, byte[] lookups) {
+    return Byte.toUnsignedInt(lookups[lookupIndex]) - 1;
   }
 
-  private int numLookupCells() {
-    return lookup.length;
+  private static int getLookupAt(int lookupIndex, int[] lookups) {
+    return lookups[lookupIndex] - 1;
   }
 
-  private void addLookup(int lookupIndex, int index) {
+  private static int numLookupCells(byte[] lookups) {
+    return lookups.length;
+  }
+
+  private static int numLookupCells(int[] lookups) {
+    return lookups.length;
+  }
+
+  private static void addLookup(int lookupIndex, int index, byte[] lookups) {
     assertState(index != NO_INDEX, "Invalid index");
-    lookup[lookupIndex] = index + 1;
+    assertState(index < 256, "Index too large");
+    lookups[lookupIndex] = (byte) (index + 1);
+  }
+
+  private static void addLookup(int lookupIndex, int index, int[] lookups) {
+    assertState(index != NO_INDEX, "Invalid index");
+    lookups[lookupIndex] = index + 1;
   }
 
   private void clearLookupArray() {
-    Arrays.fill(lookup, 0);
+    if (lookup instanceof byte[]) {
+      Arrays.fill((byte[]) lookup, (byte) 0);
+    } else {
+      Arrays.fill((int[]) lookup, 0);
+    }
   }
 
   /* Other internal methods */
@@ -365,7 +487,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       } else {
         clearLookupArray();
       }
-      compact();
+      if (lookup instanceof byte[]) {
+        compact((byte[]) lookup);
+      } else {
+        compact((int[]) lookup);
+      }
     }
   }
 
@@ -377,7 +503,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     size--;
   }
 
-  private void compact() {
+  private void compact(byte[] lookups) {
     int target = 0;
     Object[] objects = (Object[]) data;
     for (int source = 0; source < objects.length; source++) {
@@ -388,9 +514,31 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
       if (source != target) {
         objects[target] = e;
       }
-      long freeLookupCell = -(lookup(e) + 1);
+      long freeLookupCell = -(lookup(e, lookups) + 1);
       checkState(freeLookupCell >= 0);
-      addLookup((int) freeLookupCell, target);
+      addLookup((int) freeLookupCell, target, lookups);
+      target++;
+    }
+    for (; target < objects.length; target++) {
+      objects[target] = null;
+    }
+    head = size;
+  }
+
+  private void compact(int[] lookups) {
+    int target = 0;
+    Object[] objects = (Object[]) data;
+    for (int source = 0; source < objects.length; source++) {
+      Object e = objects[source];
+      if (e == null) {
+        continue;
+      }
+      if (source != target) {
+        objects[target] = e;
+      }
+      long freeLookupCell = -(lookup(e, lookups) + 1);
+      checkState(freeLookupCell >= 0);
+      addLookup((int) freeLookupCell, target, lookups);
       target++;
     }
     for (; target < objects.length; target++) {
@@ -443,16 +591,38 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     Object[] objects = new Object[Math.max(size, DEFAULT_CAPACITY)];
     data = objects;
     lookup = newLookupArray();
-    clearLookupArray();
+    if (lookup instanceof byte[]) {
+      readObjects(s, objects, (byte[]) lookup);
+    } else {
+      readObjects(s, objects, (int[]) lookup);
+    }
+  }
+
+  private void readObjects(java.io.ObjectInputStream s, Object[] objects, byte[] lookups)
+      throws IOException, ClassNotFoundException, StreamCorruptedException {
     for (head = 0; head < size; head++) {
       Object e = firstNonNull(s.readObject(), Reserved.NULL);
       objects[head] = e;
-      long x = lookup(e);
+      long x = lookup(e, lookups);
       long freeLookupCell = -(x + 1);
       if (freeLookupCell < 0) {
         throw new StreamCorruptedException("Duplicate data found in serialized set");
       }
-      addLookup((int) freeLookupCell, head);
+      addLookup((int) freeLookupCell, head, lookups);
+    }
+  }
+
+  private void readObjects(java.io.ObjectInputStream s, Object[] objects, int[] lookups)
+      throws IOException, ClassNotFoundException, StreamCorruptedException {
+    for (head = 0; head < size; head++) {
+      Object e = firstNonNull(s.readObject(), Reserved.NULL);
+      objects[head] = e;
+      long x = lookup(e, lookups);
+      long freeLookupCell = -(x + 1);
+      if (freeLookupCell < 0) {
+        throw new StreamCorruptedException("Duplicate data found in serialized set");
+      }
+      addLookup((int) freeLookupCell, head, lookups);
     }
   }
 
