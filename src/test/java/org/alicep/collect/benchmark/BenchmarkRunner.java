@@ -4,7 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
-import static org.alicep.collect.benchmark.ManagementMonitor.formatBytes;
+import static org.alicep.collect.benchmark.Bytes.bytes;
 import static org.junit.runner.Description.createTestDescription;
 
 import java.io.ByteArrayOutputStream;
@@ -345,7 +345,7 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
 
     private static void summarize(double[] elapsedTime, int iterations, double memoryUsage, ManagementMonitor monitor) {
       String timeSummary = summarizeTime(elapsedTime, iterations);
-      String memorySummary = formatBytes((long) memoryUsage);
+      String memorySummary = bytes((long) memoryUsage).toString();
       System.out.println(timeSummary + ", " + memorySummary);
       monitor.printIfChanged(System.out);
     }
