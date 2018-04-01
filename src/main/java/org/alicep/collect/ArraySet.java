@@ -332,13 +332,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     while (length * 2 > numCells) {
       numCells = numCells * 2;
     }
-    int[] lookup = new int[numCells];
-    Arrays.fill(lookup, -1);
-    return lookup;
+    return new int[numCells];
   }
 
   private int getLookupAt(int lookupIndex) {
-    return lookup[lookupIndex];
+    return lookup[lookupIndex] - 1;
   }
 
   private int numLookupCells() {
@@ -347,11 +345,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private void addLookup(int lookupIndex, int index) {
     assertState(index != NO_INDEX, "Invalid index");
-    lookup[lookupIndex] = index;
+    lookup[lookupIndex] = index + 1;
   }
 
   private void clearLookupArray() {
-    Arrays.fill(lookup, -1);
+    Arrays.fill(lookup, 0);
   }
 
   /* Other internal methods */
