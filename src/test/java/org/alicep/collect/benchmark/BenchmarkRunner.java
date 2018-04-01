@@ -133,8 +133,8 @@ public class BenchmarkRunner extends ParentRunner<BenchmarkRunner.SingleBenchmar
               index))
           .sorted(Ordering.natural().onResultOf(flavour -> {
             Object config = flavour.config();
-            if (config instanceof Enum) {
-              return (Enum<?>) config;
+            if (config instanceof Comparable) {
+              return (Comparable<?>) config;
             } else {
               return config.toString();
             }
