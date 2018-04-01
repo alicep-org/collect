@@ -1,5 +1,6 @@
 package org.alicep.collect;
 
+import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
@@ -51,22 +52,26 @@ public class MidSetPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final Set<T> littleSet;
+  private Set<T> midSet;
 
   @SuppressWarnings("unchecked")
-  private final T[] items = (T[]) new Object[4900];
+  private final T[] items = (T[]) new Object[49];
+  @SuppressWarnings("unchecked")
+  private final T[] hitItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final T[] missItems = (T[]) new Object[5000];
 
   int i = 0;
 
   public MidSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    for (int i = 0; i < items.length; ++i) {
-      items[i] = config.itemFactory.createItem(i);
-    }
-    littleSet = setFactory.get();
+    setAll(items, config.itemFactory::createItem);
+    setAll(hitItems, i -> config.itemFactory.createItem(i % items.length));
+    setAll(missItems, i -> config.itemFactory.createItem(i + items.length));
+    midSet = setFactory.get();
     for (int i = 0; i < 49; i++) {
-      littleSet.add(items[i]);
+      midSet.add(items[i]);
     }
   }
 
@@ -74,31 +79,40 @@ public class MidSetPerformanceTests<T> {
   public void create() {
     // 49 elements is right before an ArraySet resize
     // 50 elements would cost significantly more due to paying down the amortisation costs every time
-    Set<T> set = setFactory.get();
+    midSet = setFactory.get();
     for (int i = 0; i < 49; ++i) {
-      set.add(items[i]);
+      midSet.add(items[i]);
     }
   }
 
   @Benchmark("Iterate through a 49-element set")
-  @InterferenceWarning  // Hitting java.lang.Iterable.forEach, which cannot be cloned
+  @InterferenceWarning("This test sometimes JITs badly and consumes memory")
   public void iterate() {
-    littleSet.forEach(e -> assertNotNull(e));
+    midSet.forEach(e -> assertNotNull(e));
   }
 
-  @Benchmark("Hit in a 49-element set")
+  @Benchmark("Hit in a 49-element set, identical")
+  public void identityHit() {
+    assertTrue(midSet.contains(next(items)));
+  }
+
+  @Benchmark("Hit in a 49-element set, not identical")
   public void hit() {
-    assertTrue(littleSet.contains(items[i]));
-    if (++i == 49) i = 0;
+    assertTrue(midSet.contains(next(hitItems)));
   }
 
   @Benchmark("Miss in a 49-element set")
   public void miss() {
     // 49 elements is right before an ArraySet resize
     // 50 elements would be a lot faster due to lower occupancy
-    assertFalse(littleSet.contains(items[i + 49]));
-    if (++i + 49 == items.length) {
+    assertFalse(midSet.contains(next(missItems)));
+  }
+
+  private <V> V next(V[] array) {
+    ++i;
+    if (i == array.length) {
       i = 0;
     }
+    return array[i];
   }
 }
