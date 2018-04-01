@@ -21,7 +21,7 @@ import org.junit.runner.RunWith;
 import com.google.common.collect.ImmutableList;
 
 @RunWith(BenchmarkRunner.class)
-public class BigSetPerformanceTests<T> {
+public class KiloSetPerformanceTests<T> {
 
   static class Config<T> {
     private final Supplier<Set<T>> setFactory;
@@ -36,9 +36,9 @@ public class BigSetPerformanceTests<T> {
 
     @Override
     public String toString() {
-      String mapType = setFactory.get().getClass().getSimpleName();
+      String setType = setFactory.get().getClass().getSimpleName();
       String itemType = itemFactory.createItem(0).getClass().getSimpleName();
-      return mapType + "<" + itemType + ">";
+      return setType + "<" + itemType + ">";
     }
   }
 
@@ -52,47 +52,63 @@ public class BigSetPerformanceTests<T> {
       new Config<>(ArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
-  private final ItemFactory<T> itemFactory;
-  private Set<T> bigSet;
+  private Set<T> kiloSet;
 
   @SuppressWarnings("unchecked")
-  private final T[] elements = (T[]) new Object[1_000_000];
+  private final T[] items = (T[]) new Object[1000];
+  @SuppressWarnings("unchecked")
+  private final T[] hitItems = (T[]) new Object[5000];
+  @SuppressWarnings("unchecked")
+  private final T[] missItems = (T[]) new Object[5000];
 
   int i = 0;
 
-  public BigSetPerformanceTests(Config<T> config) {
+  public KiloSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
-    itemFactory = config.itemFactory;
 
-    setAll(elements, itemFactory::createItem);
-    bigSet = setFactory.get();
-    for (T item : elements) {
-      bigSet.add(item);
+    setAll(items, config.itemFactory::createItem);
+    setAll(hitItems, i -> config.itemFactory.createItem(i % items.length));
+    setAll(missItems, i -> config.itemFactory.createItem(i + items.length));
+    kiloSet = setFactory.get();
+    for (T item : items) {
+      kiloSet.add(item);
     }
   }
 
-  @Benchmark("Create a 1M-element map")
+  @Benchmark("Create a 1K-element set")
   public void create() {
-    bigSet = setFactory.get();
-    for (T item : elements) {
-      bigSet.add(item);
+    kiloSet = setFactory.get();
+    for (T item : items) {
+      kiloSet.add(item);
     }
   }
 
-  @Benchmark("Iterate through a 1M-element map")
-  @InterferenceWarning
+  @Benchmark("Iterate through a 1K-element set")
+  @InterferenceWarning("This test sometimes JITs badly and consumes memory")
   public void iterate() {
-    bigSet.forEach(e -> assertNotNull(e));
+    kiloSet.forEach(e -> assertNotNull(e));
   }
 
-  @Benchmark("Hit in a 1M-element map")
+  @Benchmark("Hit in a 1K-element set, identical")
+  public void identityHit() {
+    assertTrue(kiloSet.contains(next(items)));
+  }
+
+  @Benchmark("Hit in a 1K-element set, not identical")
   public void hit() {
-    assertTrue(bigSet.contains(elements[i]));
-    if (++i == elements.length) i = 0;
+    assertTrue(kiloSet.contains(next(hitItems)));
   }
 
-  @Benchmark("Miss in a 1M-element map")
+  @Benchmark("Miss in a 1K-element set")
   public void miss() {
-    assertFalse(bigSet.contains(itemFactory.createItem(i++ + elements.length)));
+    assertFalse(kiloSet.contains(next(missItems)));
+  }
+
+  private <V> V next(V[] array) {
+    ++i;
+    if (i == array.length) {
+      i = 0;
+    }
+    return array[i];
   }
 }
