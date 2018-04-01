@@ -1,5 +1,6 @@
 package org.alicep.collect;
 
+import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
@@ -10,7 +11,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -72,9 +72,9 @@ public class SingletonPerformanceTests<T> {
     singleton = setFactory.get();
     singleton.add(item);
     assertForked(singleton);
-    fill(hitItems, $ -> config.itemFactory.createItem(0));
-    fill(missItems, i -> config.itemFactory.createItem(i + 1));
-    fill(singletons, $ -> {
+    setAll(hitItems, $ -> config.itemFactory.createItem(0));
+    setAll(missItems, i -> config.itemFactory.createItem(i + 1));
+    setAll(singletons, $ -> {
       Set<T> set = setFactory.get();
       set.add(item);
       return set;
@@ -127,11 +127,5 @@ public class SingletonPerformanceTests<T> {
       i = 0;
     }
     return array[i];
-  }
-
-  private static <T> void fill(T[] array, IntFunction<T> factory) {
-    for (int i = 0; i < array.length; ++i) {
-      array[i] = factory.apply(i);
-    }
   }
 }

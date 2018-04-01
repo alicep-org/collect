@@ -1,5 +1,6 @@
 package org.alicep.collect;
 
+import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
@@ -63,9 +64,7 @@ public class BigSetPerformanceTests<T> {
     setFactory = config.setFactory;
     itemFactory = config.itemFactory;
 
-    for (int i = 0; i < elements.length; ++i) {
-      elements[i] = itemFactory.createItem(i);
-    }
+    setAll(elements, itemFactory::createItem);
     bigSet = setFactory.get();
     for (T item : elements) {
       bigSet.add(item);
