@@ -1,5 +1,6 @@
 package org.alicep.collect;
 
+import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
@@ -10,7 +11,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -69,15 +69,15 @@ public class SmallSetPerformanceTests<T> {
   public SmallSetPerformanceTests(Config<T> config) {
     setFactory = config.setFactory;
 
-    fill(items, config.itemFactory::createItem);
-    fill(hitItems, i -> config.itemFactory.createItem(i % items.length));
-    fill(missItems, i -> config.itemFactory.createItem(i + items.length));
+    setAll(items, config.itemFactory::createItem);
+    setAll(hitItems, i -> config.itemFactory.createItem(i % items.length));
+    setAll(missItems, i -> config.itemFactory.createItem(i + items.length));
 
     littleSet = setFactory.get();
     for (T item : items) {
       littleSet.add(item);
     }
-    fill(littleSets, $ -> {
+    setAll(littleSets, $ -> {
       Set<T> set = setFactory.get();
       for (T item : items) {
         set.add(item);
@@ -129,11 +129,5 @@ public class SmallSetPerformanceTests<T> {
       i = 0;
     }
     return array[i];
-  }
-
-  private static <T> void fill(T[] array, IntFunction<T> factory) {
-    for (int i = 0; i < array.length; ++i) {
-      array[i] = factory.apply(i);
-    }
   }
 }

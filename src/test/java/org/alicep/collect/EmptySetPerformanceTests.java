@@ -1,5 +1,6 @@
 package org.alicep.collect;
 
+import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
 import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
@@ -10,7 +11,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import org.alicep.collect.benchmark.BenchmarkRunner;
@@ -66,8 +66,8 @@ public class EmptySetPerformanceTests<T> {
     setFactory = config.setFactory;
 
     emptySet = setFactory.get();
-    fill(items, config.itemFactory::createItem);
-    fill(emptySets, $ -> setFactory.get());
+    setAll(items, config.itemFactory::createItem);
+    setAll(emptySets, $ -> setFactory.get());
   }
 
   @Benchmark("Create an empty set")
@@ -100,11 +100,5 @@ public class EmptySetPerformanceTests<T> {
       i = 0;
     }
     return array[i];
-  }
-
-  private static <T> void fill(T[] array, IntFunction<T> factory) {
-    for (int i = 0; i < array.length; ++i) {
-      array[i] = factory.apply(i);
-    }
   }
 }
