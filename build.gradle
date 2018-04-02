@@ -38,7 +38,7 @@ dependencies {
   testCompile guavaTestlib
   testCompile junit
   testCompile koloboke
-  testRuntime kolobokeImpl
+  testCompile kolobokeImpl
 }
 
 modifyPom {
