@@ -189,12 +189,13 @@ public class SetSizeTests {
     while (dataSize < elements) {
       dataSize += dataSize >> 1;
     }
-    int indices = 16;
-    while (indices < dataSize * 2) {
+    int indices = Math.max(Integer.highestOneBit(elements - 1) << 2, 16);
+    if (elements == (1L << Byte.SIZE) || elements == (1L << Short.SIZE)) {
+      // Grows early at these sizes as -1 is a reserved constant in the offset array
       indices *= 2;
     }
     int bytesPerIndex = 1;
-    while (dataSize >= (1L << (bytesPerIndex * Byte.SIZE))) {
+    while (elements > (1L << (bytesPerIndex * Byte.SIZE)) - 1) {
       bytesPerIndex *= 2;
     }
     return bytes(64 + roundUpToAMultipleOf(2, dataSize) * 4 + roundUpToAMultipleOf(4, indices * bytesPerIndex));
