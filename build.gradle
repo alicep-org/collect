@@ -62,9 +62,9 @@ modifyPom {
 
     developers {
       developer {
-        id 'chrisalice'
-        name 'Chris Purcell'
-        email 'Chris.Purcell.39@gmail.com'
+        id 'alicederyn'
+        name 'Alice Purcell'
+        email 'Alice.Purcell.39@gmail.com'
         timezone 'Europe/London'
       }
     }
