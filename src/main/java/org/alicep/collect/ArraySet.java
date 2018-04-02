@@ -124,8 +124,8 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   /** Size of the set. */
   private int size = 0;
 
-  /** Next location to insert into {@link #data}, if it is an array. */
-  private int head = 0;
+  /** Next location to insert into {@link #data}, if it is an array, or -1 otherwise. */
+  private int head;
 
   /**
    * Holds the set data. Usually an array, but may be the object itself for a singleton, or null for an empty set.
@@ -151,6 +151,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   public ArraySet() {
     data = null;
     lookup = null;
+    head = -1;
   }
 
   /**
@@ -169,7 +170,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public void forEach(Consumer<? super E> action) {
-    if (lookup == null) {
+    if (head == -1) {
       @SuppressWarnings("unchecked")
       E item = (E) data;
       if (item != null) {
@@ -206,6 +207,11 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     if (initialCapacity > 1) {
       data = new Object[initialCapacity];
       lookup = newLookupArray(lookupSizeFor(initialCapacity), initialCapacity);
+      head = 0;
+    } else {
+      data = null;
+      lookup = null;
+      head = -1;
     }
   }
 
@@ -216,7 +222,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   @Override
   public Iterator<E> iterator() {
-    return (lookup == null) ? new SmallIterator() : new LargeIterator();
+    return (head == -1) ? new SmallIterator() : new LargeIterator();
   }
 
   @Override
@@ -227,7 +233,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   @Override
   public boolean contains(Object o) {
     Object obj = (o == null) ? Reserved.NULL : o;
-    if (lookup == null) {
+    if (head == -1) {
       return singletonContains(obj);
     } else if (lookup instanceof byte[]) {
       return byteContains(obj, (byte[]) lookup);
@@ -261,7 +267,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   public boolean add(E e) {
     Object obj = firstNonNull(e, Reserved.NULL);
 
-    if (lookup == null) {
+    if (head == -1) {
       return singletonAdd(obj);
     }
     // Ensure there is a free cell _before_ looking up index as rehashing invalidates the index.
@@ -339,7 +345,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   @Override
   public boolean remove(Object o) {
     Object obj = (o == null) ? Reserved.NULL : o;
-    if (lookup == null) {
+    if (head == -1) {
       return singletonRemove(obj);
     } else if (lookup instanceof byte[]) {
       return byteRemove(obj, (byte[]) lookup);
@@ -739,7 +745,7 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
 
   private void writeObject(java.io.ObjectOutputStream s) throws IOException {
     s.writeInt(size);
-    if (lookup == null) {
+    if (head == -1) {
       if (data != null) {
         s.writeObject(data == Reserved.NULL ? null : data);
       }
@@ -757,15 +763,21 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
   private void readObject(java.io.ObjectInputStream s) throws IOException, ClassNotFoundException {
     size = s.readInt();
     if (size == 0) {
+      data = null;
+      lookup = null;
+      head = -1;
       return;
     } else if (size == 1) {
       data = firstNonNull(s.readObject(), Reserved.NULL);
+      lookup = null;
+      head = -1;
       return;
     }
 
     Object[] objects = new Object[Math.max(size, DEFAULT_CAPACITY)];
     data = objects;
     lookup = newLookupArray(lookupSizeFor(size), size);
+    head = 0;
     if (lookup instanceof byte[]) {
       readObjects(s, objects, (byte[]) lookup);
     } else if (lookup instanceof short[]) {
