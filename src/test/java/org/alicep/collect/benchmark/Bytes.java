@@ -49,6 +49,10 @@ public class Bytes implements Comparable<Bytes> {
     this.bytes = bytes;
   }
 
+  public long asLong() {
+    return bytes;
+  }
+
   @Override
   public boolean equals(Object obj) {
     if (!(obj instanceof Bytes)) {
