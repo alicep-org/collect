@@ -2,18 +2,24 @@ package org.alicep.collect;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import java.util.Set;
-import java.util.function.Supplier;
+import com.google.common.collect.ImmutableList;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 
 @RunWith(Parameterized.class)
 public class SetTests<T> {
@@ -45,7 +51,8 @@ public class SetTests<T> {
     }
   }
 
-  private static final ImmutableList<Integer> SIZES = ImmutableList.of(10, 15, 33, 75, 290, 375);
+  private static final ImmutableList<Integer> SIZES = ImmutableList.of(
+      10, 15, 33, 75, 290, 375, 1_000, 10_000, 100_000);
 
   @Parameters(name= "{0}")
   public static Iterable<Config<?>> data() {
@@ -69,6 +76,7 @@ public class SetTests<T> {
 
   @Test
   public void validateAThousandInsertions() {
+    assumeTrue(size < 1000);
     Set<T> arraySet = setFactory.get();
     for (long index = 0; index < 1000; index++) {
       if (index >= size) {
@@ -78,6 +86,23 @@ public class SetTests<T> {
       addMissingItem(arraySet, index);
       verifyItems(arraySet, Math.max(index - size + 1, 0), index, " after inserting item " + (index + 1));
     }
+  }
+
+  @Test
+  public void validateSerialization() throws IOException, ClassNotFoundException {
+    Set<T> arraySet = setFactory.get();
+    for (int i = 0; i < size; ++i) {
+      addMissingItem(arraySet, i);
+    }
+
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    new ObjectOutputStream(bytes).writeObject(arraySet);
+    arraySet = null;
+
+    @SuppressWarnings("unchecked")
+    Set<T> clone = (Set<T>) new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray())).readObject();
+
+    verifyItems(clone, 0, size - 1, "after cloning");
   }
 
   private void addMissingItem(Set<T> arraySet, long index) {
