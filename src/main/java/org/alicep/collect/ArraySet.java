@@ -702,12 +702,28 @@ public class ArraySet<E> extends AbstractSet<E> implements Serializable {
     lookup = newLookupArray();
     if (lookup instanceof byte[]) {
       readObjects(s, objects, (byte[]) lookup);
+    } else if (lookup instanceof short[]) {
+      readObjects(s, objects, (short[]) lookup);
     } else {
       readObjects(s, objects, (int[]) lookup);
     }
   }
 
   private void readObjects(java.io.ObjectInputStream s, Object[] objects, byte[] lookups)
+      throws IOException, ClassNotFoundException, StreamCorruptedException {
+    for (head = 0; head < size; head++) {
+      Object e = firstNonNull(s.readObject(), Reserved.NULL);
+      objects[head] = e;
+      long x = lookup(e, lookups);
+      long freeLookupCell = -(x + 1);
+      if (freeLookupCell < 0) {
+        throw new StreamCorruptedException("Duplicate data found in serialized set");
+      }
+      addLookup((int) freeLookupCell, head, lookups);
+    }
+  }
+
+  private void readObjects(java.io.ObjectInputStream s, Object[] objects, short[] lookups)
       throws IOException, ClassNotFoundException, StreamCorruptedException {
     for (head = 0; head < size; head++) {
       Object e = firstNonNull(s.readObject(), Reserved.NULL);
