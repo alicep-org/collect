@@ -37,6 +37,8 @@ dependencies {
   testCompile commonsMath
   testCompile guavaTestlib
   testCompile junit
+  testCompile koloboke
+  testRuntime kolobokeImpl
 }
 
 modifyPom {
