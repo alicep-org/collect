@@ -17,6 +17,7 @@ package org.alicep.collect.benchmark;
 
 import static java.lang.management.ManagementFactory.getGarbageCollectorMXBeans;
 import static java.lang.management.ManagementFactory.getMemoryPoolMXBeans;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
@@ -128,10 +129,18 @@ public abstract class MemoryAllocationMonitor {
 
     public void awaitSweeps(long targetSweeps) {
       lock.lock();
-      while (sweeps < targetSweeps) {
-        sweeped.awaitUninterruptibly();
+      try {
+        while (sweeps < targetSweeps) {
+          if (!sweeped.await(100, MILLISECONDS)) {
+            return;
+          }
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      } finally {
+        lock.unlock();
       }
-      lock.unlock();
     }
   }
 
