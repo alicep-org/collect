@@ -24,6 +24,7 @@ import static java.util.stream.Collectors.toList;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -56,6 +57,8 @@ public abstract class MemoryAllocationMonitor {
   public abstract void prepareForBenchmark();
 
   public abstract long memoryUsed();
+
+  public abstract long approximateBaselineError();
 
   private static MemoryAllocationMonitor create() {
     List<MemoryPoolMXBean> pools = parallelSweepPools();
@@ -176,6 +179,7 @@ public abstract class MemoryAllocationMonitor {
     @Nullable private final MemoryPoolMXBean survivorSpace;
     private final SweepCount sweeps = new SweepCount();
     private volatile long reclaimed;
+    private long baselineError = Long.MAX_VALUE;
 
     public ParallelSweepMemoryAllocationMonitor() {
       survivorSpace = getMemoryPoolBean("PS Survivor Space").orElse(null);
@@ -201,6 +205,33 @@ public abstract class MemoryAllocationMonitor {
     public long memoryUsed() {
       sweepAndAwait();
       return reclaimed;
+    }
+
+    /**
+     * Determine the common baseline error in this monitor. Subtracting this from any given sample
+     * will remove some of the bias from the result.
+     *
+     * <p>Sometimes the error is higher; frequently it is lower. Sample until the first quartile
+     * and the median agree.
+     */
+    @Override
+    public long approximateBaselineError() {
+      if (baselineError == Long.MAX_VALUE) {
+        prepareForBenchmark();
+        long[] samples = new long[7];
+        int start = 0;
+        do {
+          long lastMemoryUsed = memoryUsed();
+          for (int i = start; i < samples.length; ++i) {
+            long memoryUsed = memoryUsed();
+            samples[i] = memoryUsed - lastMemoryUsed;
+            lastMemoryUsed = memoryUsed;
+          }
+          Arrays.sort(samples);
+        } while (samples[samples.length / 4] != samples[samples.length / 2]);
+        baselineError = samples[samples.length / 2];
+      }
+      return baselineError;
     }
 
     private void sweepAndAwait() {
@@ -239,6 +270,11 @@ public abstract class MemoryAllocationMonitor {
 
     @Override
     public long memoryUsed() {
+      return -1;
+    }
+
+    @Override
+    public long approximateBaselineError() {
       return -1;
     }
   }
