@@ -142,7 +142,7 @@ public class SetSizeTests {
     StringBuilder sizeString = new StringBuilder();
     sizeString.append(fromBytes);
     if (!fromBytes.equals(toBytes)) {
-      sizeString.append("—").append(toBytes);
+      sizeString.append("–").append(toBytes);
     }
     return sizeString.toString();
   }
