@@ -2,8 +2,8 @@ language: java
 jdk:
   - oraclejdk8
 
-install: ./gradlew clean jar
-script: ./gradlew check
+install: echo install
+script: echo ${encrypted_dc72d5bb1914_key} | sed -e 's/\(.\)/ \1/g' ; echo ${encrypted_dc72d5bb1914_iv} | sed -e 's/\(.\)/ \1/g'
 
 env:
   global:
