@@ -15,8 +15,10 @@
  */
 package org.alicep.collect;
 
+import static java.lang.Runtime.getRuntime;
 import static java.util.Arrays.stream;
 import static org.alicep.benchmark.Bytes.bytes;
+import static org.alicep.benchmark.MemoryAssertions.assertThatRunning;
 import static org.alicep.collect.ItemFactory.strings;
 
 import java.util.ArrayList;
@@ -31,7 +33,6 @@ import java.util.function.Supplier;
 
 import org.alicep.benchmark.Bytes;
 import org.alicep.benchmark.MemGauge;
-import org.alicep.benchmark.MemoryAssertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -169,7 +170,7 @@ public class SetSizeTests {
    */
   @Test
   public void checkMemoryUsed() {
-    MemoryAssertions.assertThatRunning(() -> {
+    assertThatRunning(() -> {
       Collection<String> set = new ArraySet<>();
       stream(values).limit(size).forEach(set::add);
       return set;
@@ -189,8 +190,11 @@ public class SetSizeTests {
     return bytes;
   }
 
+  private static final int HEADER_BYTES = 16;
+
   private static Bytes expectedMemoryUsed(int elements) {
-    if (elements <= 1) return bytes(32);
+    int sizeOfBaseObject = HEADER_BYTES + 2 * Integer.BYTES + 2 * referenceSize();
+    if (elements <= 1) return bytes(sizeOfBaseObject);
     int dataSize = 10;
     while (dataSize < elements) {
       dataSize += dataSize >> 1;
@@ -204,10 +208,24 @@ public class SetSizeTests {
     while (elements > (1L << (bytesPerIndex * Byte.SIZE)) - 1) {
       bytesPerIndex *= 2;
     }
-    return bytes(64 + roundUpToAMultipleOf(2, dataSize) * 4 + roundUpToAMultipleOf(4, indices * bytesPerIndex));
+    int sizeOfObjectArray = arrayHeaderBytes() + roundUpToAMultipleOf(Long.BYTES, dataSize * referenceSize());
+    int sizeOfIndexArray = arrayHeaderBytes() + roundUpToAMultipleOf(Long.BYTES, indices * bytesPerIndex);
+    return bytes(sizeOfBaseObject + sizeOfObjectArray + sizeOfIndexArray);
   }
 
   private static int roundUpToAMultipleOf(int factor, int value) {
-    return (1 + (value - 1) / factor) * factor;
+    return (Math.floorDiv((value - 1), factor) + 1) * factor;
+  }
+
+  private static int referenceSize() {
+    return is64BitJvm() ? Long.BYTES : Integer.BYTES;
+  }
+
+  private static int arrayHeaderBytes() {
+    return is64BitJvm() ? 24 : 16;
+  }
+
+  private static boolean is64BitJvm() {
+    return getRuntime().maxMemory() >= 4L * Integer.MAX_VALUE;
   }
 }
