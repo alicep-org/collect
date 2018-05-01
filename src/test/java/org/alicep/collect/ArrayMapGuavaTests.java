@@ -1,5 +1,13 @@
 package org.alicep.collect;
 
+import java.util.Map;
+import java.util.Map.Entry;
+
+import org.alicep.collect.ArrayMapGuavaTests.GuavaTests;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
+
 import com.google.common.collect.testing.MapTestSuiteBuilder;
 import com.google.common.collect.testing.TestStringMapGenerator;
 import com.google.common.collect.testing.features.CollectionFeature;
@@ -7,13 +15,6 @@ import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
 
 import junit.framework.TestSuite;
-import org.alicep.collect.ArrayMapGuavaTests.GuavaTests;
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
-
-import java.util.Map;
-import java.util.Map.Entry;
 
 @RunWith(Suite.class)
 @SuiteClasses(GuavaTests.class)

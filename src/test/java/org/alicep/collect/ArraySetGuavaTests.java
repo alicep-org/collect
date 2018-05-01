@@ -1,5 +1,13 @@
 package org.alicep.collect;
 
+import java.util.Arrays;
+import java.util.Set;
+
+import org.alicep.collect.ArraySetGuavaTests.GuavaTests;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
+
 import com.google.common.collect.testing.SetTestSuiteBuilder;
 import com.google.common.collect.testing.TestStringSetGenerator;
 import com.google.common.collect.testing.features.CollectionFeature;
@@ -7,13 +15,6 @@ import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.SetFeature;
 
 import junit.framework.TestSuite;
-import org.alicep.collect.ArraySetGuavaTests.GuavaTests;
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
-
-import java.util.Arrays;
-import java.util.Set;
 
 @RunWith(Suite.class)
 @SuiteClasses(GuavaTests.class)

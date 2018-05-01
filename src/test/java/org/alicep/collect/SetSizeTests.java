@@ -15,9 +15,9 @@
  */
 package org.alicep.collect;
 
+import static java.util.Arrays.stream;
+import static org.alicep.benchmark.Bytes.bytes;
 import static org.alicep.collect.ItemFactory.strings;
-import static org.alicep.collect.benchmark.Bytes.bytes;
-import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,8 +29,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import org.alicep.collect.benchmark.Bytes;
-import org.alicep.collect.benchmark.MemGauge;
+import org.alicep.benchmark.Bytes;
+import org.alicep.benchmark.MemGauge;
+import org.alicep.benchmark.MemoryAssertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -81,7 +82,7 @@ public class SetSizeTests {
   }
 
   @AfterClass
-  public static void printTally() {
+  public static void printTally() throws InterruptedException {
     if (sizeTally.isEmpty() || inGradle()) {
       return;
     }
@@ -108,7 +109,7 @@ public class SetSizeTests {
     return System.getProperties().keySet().stream().anyMatch(k -> k.toString().startsWith("org.gradle."));
   }
 
-  private static void printRow(int fromSize, int toSize, Bytes bytes) {
+  private static void printRow(int fromSize, int toSize, Bytes bytes) throws InterruptedException {
     System.out.print("| ");
     StringBuilder arraySize = new StringBuilder();
     arraySize.append(prettyCount(fromSize));
@@ -136,7 +137,8 @@ public class SetSizeTests {
     return Integer.toString(size);
   }
 
-  private static String memoryUsage(Supplier<Collection<String>> factory, int fromSize, int toSize) {
+  private static String memoryUsage(Supplier<Collection<String>> factory, int fromSize, int toSize)
+      throws InterruptedException {
     Bytes fromBytes = getMemoryUsage(factory, fromSize);
     Bytes toBytes = getMemoryUsage(factory, toSize);
     StringBuilder sizeString = new StringBuilder();
@@ -167,13 +169,17 @@ public class SetSizeTests {
    */
   @Test
   public void checkMemoryUsed() {
-    Bytes bytes = getMemoryUsage(ArraySet::new, size);
-    sizeTally.put(size, bytes);
-    assertEquals(expectedMemoryUsed(size), bytes);
+    MemoryAssertions.assertThatRunning(() -> {
+      Collection<String> set = new ArraySet<>();
+      stream(values).limit(size).forEach(set::add);
+      return set;
+    }).returnsObjectConsuming(expectedMemoryUsed(size));
+    sizeTally.put(size, expectedMemoryUsed(size));
   }
 
-  private static Bytes getMemoryUsage(Supplier<Collection<String>> factory, int size) {
-    Bytes bytes = MemGauge.measureMemoryUsage($ -> {
+  private static Bytes getMemoryUsage(Supplier<Collection<String>> factory, int size)
+      throws InterruptedException {
+    Bytes bytes = MemGauge.objectSize(() -> {
       Collection<String> set = factory.get();
       for (int i = 0; i < size; ++i) {
         set.add(values[i]);

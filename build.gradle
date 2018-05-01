@@ -33,6 +33,7 @@ test {
 dependencies {
   compile guava
 
+  testCompile benchmark
   testCompile byteBuddy
   testCompile commonsMath
   testCompile guavaTestlib

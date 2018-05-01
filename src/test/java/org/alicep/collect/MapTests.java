@@ -4,9 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -15,8 +14,9 @@ import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import java.util.Map;
-import java.util.function.Supplier;
+import com.google.common.collect.ImmutableList;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 
 @RunWith(Parameterized.class)
 @FixMethodOrder(MethodSorters.JVM)

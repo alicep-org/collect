@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.alicep.collect.benchmark.BenchmarkRunner;
-import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
-import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
+import org.alicep.benchmark.BenchmarkRunner;
+import org.alicep.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.benchmark.BenchmarkRunner.Configuration;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;

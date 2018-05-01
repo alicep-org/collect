@@ -11,9 +11,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import org.alicep.collect.benchmark.BenchmarkRunner;
-import org.alicep.collect.benchmark.BenchmarkRunner.Benchmark;
-import org.alicep.collect.benchmark.BenchmarkRunner.Configuration;
+import org.alicep.benchmark.BenchmarkRunner;
+import org.alicep.benchmark.BenchmarkRunner.Benchmark;
+import org.alicep.benchmark.BenchmarkRunner.Configuration;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.commons.math3.random.Well19937c;
 import org.junit.runner.RunWith;
