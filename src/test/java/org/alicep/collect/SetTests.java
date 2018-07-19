@@ -58,8 +58,8 @@ public class SetTests<T> {
   public static Iterable<Config<?>> data() {
     ImmutableList.Builder<Config<?>> data = ImmutableList.builder();
     for (int size : SIZES) {
-      data.add(new Config<>(ArraySet::new, longs, size));
-      data.add(new Config<>(ArraySet::new, strings, size));
+      data.add(new Config<>(BucketPairSpikeArraySet::new, longs, size));
+      data.add(new Config<>(BucketPairSpikeArraySet::new, strings, size));
     }
     return data.build();
   }

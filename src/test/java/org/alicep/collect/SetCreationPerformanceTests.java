@@ -53,7 +53,7 @@ public class SetCreationPerformanceTests {
 
   @SuppressWarnings("unchecked")
   private static List<Config> configs() {
-    List<Supplier<Set<String>>> factories = ImmutableList.of(ArraySet::new, HashSet::new, LinkedHashSet::new);
+    List<Supplier<Set<String>>> factories = ImmutableList.of(BucketPairSpikeArraySet::new, HashSet::new, LinkedHashSet::new);
     List<Integer> sizes = ImmutableList.of(
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
         11, 12, 13, 14, 15,

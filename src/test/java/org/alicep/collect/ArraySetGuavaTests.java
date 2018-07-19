@@ -26,7 +26,7 @@ public class ArraySetGuavaTests {
           .using(new TestStringSetGenerator() {
             @Override
             protected Set<String> create(String[] elements) {
-              return new ArraySet<>(Arrays.asList(elements));
+              return new BucketPairSpikeArraySet<>(Arrays.asList(elements));
             }
           })
           .withFeatures(

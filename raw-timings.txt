@@ -1,0 +1,409 @@
+
+No code: 1.60 ns (±228 ps), 0B
+Hashcode: 2.72 ns (±731 ps), 0B
+Calculations: 3.02 ns (±443 ps), 0B
+Lookup: 5.16 ns (±898 ps), 0B
+Lookup using >>: 3.17 ns (±442 ps), 0B
+Lookup + follow: 9.66 ns (±1.04 ns), 0B
+Stride: 12.8 ns (±1.35 ns), 0B
+Stride using >>: 8.19 ns (±1.56 ns), 0B
+
+Hashset: 13.0 ns (±1.53 ns), 0B
+
+
+
+
+Unmodified: 28.7 ns (±3.27 ns), 0B
+If in entries/long: 20.2 ns (±2.96 ns), 0B
+If in entryBits: 19.2 ns (±2.52 ns), 0B
+Huge if in both: 12.1 ns (±1.18 ns), 0B
+Precomputing and storing entryBits: 25.6 ns (±1.28 ns), 0B
+
+Storing hash bits: 14.0 ns (±1.88 ns), 0B
+
+
+Never reading objects: 12.2ns
+Never chaining: 11.6ns
+Neither: 11.0ns
+
+No bit compressions: 9.76 ns (±1.15 ns), 0B
+
+Space taken for an empty set:
+  ArraySet, original: 88B
+  ArraySet, uncompressed: 200B
+  HashSet: 48B
+  LinkedHashSet: 56B
+
+Space taken for a singleton:
+  ArraySet, original: 88B
+  ArraySet, uncompressed: 200B
+  HashSet: 176B
+  LinkedHashSet: 192B
+
+Space taken for a 6-element set:
+  ArraySet, original: 88B
+  ArraySet, uncompressed: 200B
+  HashSet: 320B
+  LinkedHashSet: 376B
+
+Hit in a 6-element set:
+  ArraySet, original: 8.66ns
+  ArraySet, uncompressed: 6.37ns
+  HashSet: 8.58ns
+  LinkedHashSet: 8.82ns
+
+Miss in a 6-element set:
+  ArraySet, original: 9.03ns
+  ArraySet, uncompressed: 19.8ns
+  HashSet: 13ns
+  LinkedHashSet: 11.2ns-19.0ns
+
+
+
+
+
+
+
+Singleton obtimizations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a singleton set
+----------------------
+ArraySet, empty optimizations: 26.5 ns (±4.83 ns), 232B
+  * 11 PS Scavenge collections over 9.00 ns
+ArraySet, singleton optimizations: 4.04 ns (±731 ps), 32B
+  * 6 PS Scavenge collections over 4.00 ns
+HashSet: 37.5 ns (±6.49 ns), 176B
+  * 7 PS Scavenge collections over 6.00 ns
+
+Hit in a singleton set, not identical
+-------------------------------------
+ArraySet, empty optimizations: 15.8 ns (±1.69 ns), 0B
+ArraySet, singleton optimizations: 8.09 ns (±1.12 ns), 0B
+HashSet: 45.8 ns (±5.69 ns), 0B
+
+Miss in a singleton set
+-----------------------
+ArraySet, empty optimizations: 8.88 ns (±1.95 ns), 0B
+ArraySet, singleton optimizations: 4.85 ns (±667 ps), 0B
+HashSet: 8.98 ns (±1.69 ns), 0B
+
+Hit in a singleton set, identical
+---------------------------------
+ArraySet, empty optimizations: 6.60 ns (±170 ps), 0B
+ArraySet, singleton optimizations: 1.63 ns (±187 ps), 0B
+HashSet: 7.13 ns (±791 ps), 0B
+
+forEach on a singleton set
+-------------------------
+ ** This test tends to be unreliable **
+    Run in isolation for trustworthy results
+ArraySet, empty optimizations: 2.72 ns (±333 ps), 0B
+ArraySet, singleton optimizations: 2.19 ns (±313 ps), 0B
+LinkedHashSet<String>: 8.73 ns (±680 ps), 32B
+  * 10 PS Scavenge collections over 8.00 ns
+HashSet<String>: 13.7 ns (±1.36 ns), 0B
+
+
+
+Create a singleton set
+----------------------
+singleton-optimised ArraySet<Long>: 4.02 ns (±399 ps), 32B
+  * 11 PS Scavenge collections over 9.00 ns
+singleton-optimised ArraySet<String>: 3.92 ns (±426 ps), 32B
+  * 12 PS Scavenge collections over 10.0 ns
+HashSet<Long>: 22.8 ns (±2.60 ns), 176B
+  * 11 PS Scavenge collections over 10.0 ns
+HashSet<String>: 22.6 ns (±2.96 ns), 176B
+  * 11 PS Scavenge collections over 10.0 ns
+LinkedHashSet<Long>: 30.7 ns (±3.72 ns), 192B
+  * 11 PS Scavenge collections over 9.00 ns
+LinkedHashSet<String>: 32.3 ns (±3.19 ns), 192B
+  * 12 PS Scavenge collections over 10.0 ns
+
+forEach on a singleton set
+--------------------------
+singleton-optimised ArraySet<Long>: 2.66 ns (±182 ps), 0B
+singleton-optimised ArraySet<String>: 2.33 ns (±517 ps), 0B
+HashSet<Long>: 15.5 ns (±1.82 ns), 0B
+HashSet<String>: 13.7 ns (±2.45 ns), 0B
+LinkedHashSet<Long>: 4.69 ns (±614 ps), 0B
+LinkedHashSet<String>: 4.54 ns (±482 ps), 0B
+
+Hit in a singleton set, not identical
+-------------------------------------
+singleton-optimised ArraySet<Long>: 1.74 ns (±182 ps), 0B
+singleton-optimised ArraySet<String>: 7.75 ns (±1.04 ns), 0B
+HashSet<Long>: 3.42 ns (±801 ps), 0B
+HashSet<String>: 11.2 ns (±1.80 ns), 0B
+LinkedHashSet<Long>: 3.48 ns (±469 ps), 0B
+LinkedHashSet<String>: 12.3 ns (±1.60 ns), 0B
+
+Miss in a singleton set
+-----------------------
+singleton-optimised ArraySet<Long>: 1.74 ns (±308 ps), 0B
+singleton-optimised ArraySet<String>: 5.00 ns (±574 ps), 0B
+HashSet<Long>: 3.08 ns (±318 ps), 0B
+HashSet<String>: 3.59 ns (±532 ps), 0B
+LinkedHashSet<Long>: 3.15 ns (±345 ps), 0B
+LinkedHashSet<String>: 3.93 ns (±562 ps), 0B
+
+Hit in a singleton set, identical
+---------------------------------
+singleton-optimised ArraySet<Long>: 1.69 ns (±177 ps), 0B
+singleton-optimised ArraySet<String>: 1.62 ns (±238 ps), 0B
+HashSet<Long>: 3.20 ns (±227 ps), 0B
+HashSet<String>: 2.79 ns (±303 ps), 0B
+LinkedHashSet<Long>: 3.12 ns (±212 ps), 0B
+LinkedHashSet<String>: 2.98 ns (±372 ps), 0B
+
+iterate through a singleton set
+-------------------------------
+singleton-optimised ArraySet<Long>: 2.75 ns (±292 ps), 0B
+singleton-optimised ArraySet<String>: 2.62 ns (±435 ps), 0B
+HashSet<Long>: 14.8 ns (±1.56 ns), 0B
+HashSet<String>: 14.5 ns (±2.65 ns), 0B
+LinkedHashSet<Long>: 4.37 ns (±438 ps), 0B
+LinkedHashSet<String>: 4.62 ns (±508 ps), 0B
+
+
+
+
+
+forEach on an empty set
+-----------------------
+ ** This test tends to be unreliable **
+    Run in isolation for trustworthy results
+ArraySet<String>: 1.59 ns (±321 ps), 0B
+HashSet<String>: 3.08 ns (±366 ps), 0B
+LazyLargeArraySet<String>: 1.78 ns (±208 ps), 0B
+LinkedHashSet<String>: 13.4 ns (±16.4 ns), 32B
+  * 6 PS Scavenge collections over 8.00 ns
+
+
+
+
+Create a 6-element set
+----------------------
+ArraySet, lazy + byte[]: 63.6 ns (±9.64 ns), 136B
+  * 11 PS Scavenge collections over 9.00 ns
+ArraySet, eager + compressed: 31.9 ns (±3.49 ns), 120B
+  * 11 PS Scavenge collections over 9.00 ns
+ArraySet, lazy + int[]: 80.1 ns (±15.2 ns), 232B
+  * 8 PS Scavenge collections over 8.00 ns
+HashSet: 74.6 ns (±10.8 ns), 336B
+
+forEach on a 6-element set
+--------------------------
+ArraySet, lazy + byte[]: 6.13 ns (±616 ps), 0B
+ArraySet, eager + compressed: 6.19 ns (±1.14 ns), 0B
+ArraySet, lazy + int[]: 5.74 ns (±817 ps), 0B
+
+Hit in a 6-element set, not identical
+-------------------------------------
+ArraySet, lazy + byte[]: 13.5 ns (±1.71 ns), 0B
+ArraySet, eager + compressed: 17.4 ns (±4.04 ns), 0B
+ArraySet, lazy + int[]: 13.1 ns (±1.52 ns), 0B
+
+Miss in a 6-element set
+-----------------------
+ArraySet, lazy + byte[]: 9.46 ns (±1.71 ns), 0B
+ArraySet, eager + compressed: 11.9 ns (±1.79 ns), 0B
+ArraySet, lazy + int[]: 9.29 ns (±1.85 ns), 0B
+
+Hit in a 6-element set, identical
+---------------------------------
+ArraySet, lazy + byte[]: 5.78 ns (±756 ps), 0B
+ArraySet, eager + compressed: 6.65 ns (±890 ps), 0B
+ArraySet, lazy + int[]: 6.13 ns (±938 ps), 0B
+
+iterate through a 6-element set
+-------------------------------
+ArraySet, lazy + byte[]: 14.3 ns (±1.74 ns), 0B
+ArraySet, eager + compressed: 13.7 ns (±1.90 ns), 0B
+ArraySet, lazy + int[]: 14.1 ns (±1.84 ns), 0B
+
+
+
+
+Create a 49-element set
+-----------------------
+ArraySet, lazy + byte[]: 1.41 μs (±216 ns), 1.1KB
+  * 7 PS Scavenge collections over 6.00 ns
+ArraySet, eager + compressed: 6.95 μs (±833 ns), 1.0KB
+  * 1 PS Scavenge collections over 1.00 ns
+HashSet: 673 ns (±113 ns), 2.7KB
+  * 11 PS Scavenge collections over 10.0 ns
+LinkedHashSet: 759 ns (±121 ns), 3.1KB
+  * 11 PS Scavenge collections over 10.0 ns
+ArraySet, lazy + int[]: 1.44 μs (±232 ns), 2.3KB
+  * 4 PS Scavenge collections over 3.00 ns
+
+Hit in a 49-element set, not identical
+--------------------------------------
+ArraySet, lazy + byte[]: 18.0 ns (±4.06 ns), 0B
+ArraySet, eager + compressed: 30.7 ns (±4.84 ns), 0B
+HashSet: 12.3 ns (±3.29 ns), 0B
+LinkedHashSet: 12.0 ns (±2.32 ns), 0B
+ArraySet, lazy + int[]: 17.2 ns (±3.34 ns), 0B
+
+Miss in a 49-element set
+------------------------
+ArraySet, lazy + byte[]: 12.5 ns (±1.94 ns), 0B
+ArraySet, eager + compressed: 37.2 ns (±4.29 ns), 0B
+HashSet: 7.00 ns (±1.10 ns), 0B
+LinkedHashSet: 6.55 ns (±1.29 ns), 0B
+ArraySet, lazy + int[]: 14.5 ns (±2.13 ns), 0B
+
+Hit in a 49-element set, identical
+----------------------------------
+ArraySet, lazy + byte[]: 8.56 ns (±1.35 ns), 0B
+ArraySet, eager + compressed: 29.6 ns (±3.69 ns), 0B
+HashSet: 3.24 ns (±377 ps), 0B
+LinkedHashSet: 3.05 ns (±430 ps), 0B
+ArraySet, lazy + int[]: 8.04 ns (±1.21 ns), 0B
+
+Iterate through a 49-element set
+--------------------------------
+ArraySet, lazy + byte[]: 21.0 ns (±1.67 ns), 0B
+ArraySet, eager + compressed: 25.5 ns (±10.6 ns), 0B
+HashSet: 119 ns (±17.8 ns), 0B
+LinkedHashSet: 61.7 ns (±7.92 ns), 0B
+ArraySet, lazy + int[]: 19.4 ns (±2.78 ns), 0B
+
+
+
+Create a singleton set
+----------------------
+ArraySet, lazy + byte[]: 3.93 ns (±1.19 ns), 32B
+  * 10 PS Scavenge collections over 10.0 ns
+HashSet: 24.8 ns (±9.27 ns), 176B
+  * 10 PS Scavenge collections over 9.00 ns
+ArraySet, lazy + int[]: 3.92 ns (±1.01 ns), 32B
+  * 12 PS Scavenge collections over 10.0 ns
+
+forEach on a singleton set
+--------------------------
+ArraySet, lazy + byte[]: 1.99 ns (±250 ps), 0B
+HashSet: 15.3 ns (±2.11 ns), 0B
+ArraySet, lazy + int[]: 2.01 ns (±223 ps), 0B
+
+Hit in a singleton set, not identical
+-------------------------------------
+ArraySet, lazy + byte[]: 7.50 ns (±1.60 ns), 0B
+HashSet: 11.3 ns (±1.76 ns), 0B
+ArraySet, lazy + int[]: 7.61 ns (±1.19 ns), 0B
+
+Miss in a singleton set
+-----------------------
+ArraySet, lazy + byte[]: 4.97 ns (±731 ps), 0B
+HashSet: 3.59 ns (±870 ps), 0B
+ArraySet, lazy + int[]: 4.72 ns (±703 ps), 0B
+
+Hit in a singleton set, identical
+---------------------------------
+ArraySet, lazy + byte[]: 1.57 ns (±260 ps), 0B
+HashSet: 3.94 ns (±402 ps), 0B
+ArraySet, lazy + int[]: 2.10 ns (±54.6 ps), 0B
+
+iterate through a singleton set
+-------------------------------
+ArraySet, lazy + byte[]: 3.47 ns (±83.2 ps), 0B
+HashSet: 19.0 ns (±670 ps), 0B
+ArraySet, lazy + int[]: 3.58 ns (±272 ps), 0B
+
+
+
+
+
+
+
+
+
+Create a 1K-element set
+-----------------------
+ArraySet<String>: 40.0 μs (±6.07 μs), 35.7KB
+  * 8 PS Scavenge collections over 6.00 ns
+CompactArraySet<String>: 208 μs (±26.7 μs), 30.4KB
+  * 1 PS Scavenge collections over 1.00 ns
+HashSet<String>: 18.9 μs (±8.35 μs), 48.6KB
+  * 9 PS Scavenge collections over 8.00 ns
+NullByteLongArraySet<String>: 39.1 μs (±5.04 μs), 54.1KB
+  * 8 PS Scavenge collections over 7.00 ns
+
+Hit in a 1K-element set, not identical
+--------------------------------------
+ArraySet<String>: 21.3 ns (±3.73 ns), 0B
+CompactArraySet<String>: 52.2 ns (±7.05 ns), 0B
+HashSet<String>: 18.6 ns (±5.18 ns), 0B
+NullByteLongArraySet<String>: 20.3 ns (±2.00 ns), 0B
+
+Miss in a 1K-element set
+------------------------
+ArraySet<String>: 11.4 ns (±1.73 ns), 0B
+CompactArraySet<String>: 40.4 ns (±5.55 ns), 0B
+HashSet<String>: 7.67 ns (±1.41 ns), 0B
+NullByteLongArraySet<String>: 11.7 ns (±1.94 ns), 0B
+
+Hit in a 1K-element set, identical
+----------------------------------
+ArraySet<String>: 9.64 ns (±1.80 ns), 0B
+CompactArraySet<String>: 34.2 ns (±3.94 ns), 0B
+HashSet<String>: 5.71 ns (±973 ps), 0B
+NullByteLongArraySet<String>: 10.1 ns (±1.65 ns), 0B
+
+Iterate through a 1K-element set
+--------------------------------
+ ** This test sometimes JITs badly and consumes memory **
+    Run in isolation for trustworthy results
+ArraySet<String>: 439 ns (±53.8 ns), 1B
+CompactArraySet<String>: 410 ns (±66.9 ns), 1B
+HashSet<String>: 3.59 μs (±490 ns), 47B
+NullByteLongArraySet<String>: 443 ns (±69.0 ns), 1B
+
+
+
+
+
+
+Create a singleton set
+----------------------
+ArraySet<String>: 3.72 ns (±438 ps), 32B
+  * 7 PS Scavenge collections over 6.00 ns
+HashSet<String>: 21.6 ns (±4.76 ns), 176B
+  * 11 PS Scavenge collections over 9.00 ns
+UpdatableLHashObjSet<String>: 38.8 ns (±5.96 ns), 112B
+  * 5 PS Scavenge collections over 4.00 ns
+
+forEach on a singleton set
+--------------------------
+ ** This test sometimes JITs badly and consumes memory **
+    Run in isolation for trustworthy results
+ArraySet<String>: 2.50 ns (±294 ps), 0B
+HashSet<String>: 15.2 ns (±1.90 ns), 0B
+UpdatableLHashObjSet<String>: 9.07 ns (±1.07 ns), 0B
+
+Hit in a singleton set, not identical
+-------------------------------------
+ArraySet<String>: 12.1 ns (±1.40 ns), 0B
+HashSet<String>: 11.5 ns (±1.64 ns), 0B
+UpdatableLHashObjSet<String>: 11.1 ns (±2.52 ns), 0B
+
+Miss in a singleton set
+-----------------------
+ArraySet<String>: 4.60 ns (±998 ps), 0B
+HashSet<String>: 3.92 ns (±439 ps), 0B
+UpdatableLHashObjSet<String>: 4.78 ns (±641 ps), 0B
+
+Hit in a singleton set, identical
+---------------------------------
+ArraySet<String>: 1.70 ns (±226 ps), 0B
+HashSet<String>: 2.76 ns (±338 ps), 0B
+UpdatableLHashObjSet<String>: 2.61 ns (±319 ps), 0B
+
+iterate through a singleton set
+-------------------------------
+ArraySet<String>: 2.54 ns (±512 ps), 0B
+HashSet<String>: 14.5 ns (±2.38 ns), 0B
+UpdatableLHashObjSet<String>: 10.6 ns (±1.55 ns), 0B
+

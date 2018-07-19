@@ -2,7 +2,6 @@ package org.alicep.collect;
 
 import static java.util.Arrays.setAll;
 import static org.alicep.collect.ItemFactory.longs;
-import static org.alicep.collect.ItemFactory.strings;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -19,6 +18,8 @@ import org.alicep.benchmark.BenchmarkRunner.InterferenceWarning;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
+import com.koloboke.collect.impl.hash.LHashLongSetFactoryImpl;
+import com.koloboke.collect.impl.hash.LHashObjSetFactoryImpl;
 
 @RunWith(BenchmarkRunner.class)
 public class MidSetPerformanceTests<T> {
@@ -44,12 +45,19 @@ public class MidSetPerformanceTests<T> {
 
   @Configuration
   public static final ImmutableList<Config<?>> CONFIGURATIONS = ImmutableList.of(
+      new Config<>(new LHashLongSetFactoryImpl()::newUpdatableSet, longs),
+      new Config<>(new LHashObjSetFactoryImpl<Long>()::newUpdatableSet, longs),
       new Config<>(HashSet::new, longs),
       new Config<>(LinkedHashSet::new, longs),
-      new Config<>(ArraySet::new, longs),
-      new Config<>(HashSet::new, strings),
-      new Config<>(LinkedHashSet::new, strings),
-      new Config<>(ArraySet::new, strings));
+//      new Config<>(SlowCompactingArraySet::new, longs),
+      new Config<>(Faster64IndexCompactionArraySet::new, longs),
+//      new Config<>(NoScanDuringCompactionArraySet::new, longs),
+//      new Config<>(NoScanDuringLargerCompactionArraySet::new, longs),
+      new Config<>(BucketPairSpikeArraySet::new, longs)
+//      new Config<>(HashSet::new, strings),
+//      new Config<>(LinkedHashSet::new, strings),
+//      new Config<>(ArraySet::new, strings)
+      );
 
   private final Supplier<Set<T>> setFactory;
   private Set<T> midSet;
@@ -76,6 +84,7 @@ public class MidSetPerformanceTests<T> {
   }
 
   @Benchmark("Create a 49-element set")
+//  @MinBenchmarkTime(millis = 360_000_000)
   public void create() {
     // 49 elements is right before an ArraySet resize
     // 50 elements would cost significantly more due to paying down the amortisation costs every time

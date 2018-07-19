@@ -47,10 +47,10 @@ public class SingletonPerformanceTests<T> {
   public static final ImmutableList<Config<?>> CONFIGURATIONS = ImmutableList.of(
       new Config<>(HashSet::new, longs),
       new Config<>(LinkedHashSet::new, longs),
-      new Config<>(ArraySet::new, longs),
+      new Config<>(BucketPairSpikeArraySet::new, longs),
       new Config<>(HashSet::new, strings),
       new Config<>(LinkedHashSet::new, strings),
-      new Config<>(ArraySet::new, strings));
+      new Config<>(BucketPairSpikeArraySet::new, strings));
 
   private final Supplier<Set<T>> setFactory;
   private Set<T> singleton;

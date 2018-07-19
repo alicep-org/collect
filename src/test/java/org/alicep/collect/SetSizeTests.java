@@ -171,7 +171,7 @@ public class SetSizeTests {
   @Test
   public void checkMemoryUsed() {
     assertThatRunning(() -> {
-      Collection<String> set = new ArraySet<>();
+      Collection<String> set = new BucketPairSpikeArraySet<>();
       stream(values).limit(size).forEach(set::add);
       return set;
     }).returnsObjectConsuming(expectedMemoryUsed(size));
